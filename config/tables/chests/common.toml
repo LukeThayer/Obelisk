@@ -1,0 +1,40 @@
+[table]
+id = "chest_common"
+
+[[table.rolls]]
+count = 2
+weight = 60
+
+[[table.rolls]]
+count = 3
+weight = 40
+
+[[entries]]
+type = "no_drop"
+weight = 30
+
+[[entries]]
+type = "item"
+base_type = "iron_shield"
+currencies = ["transmute"]
+weight = 15
+rarity_bonus = 10
+
+[[entries]]
+type = "item"
+base_type = "iron_gauntlets"
+currencies = ["transmute", "augment"]
+weight = 15
+rarity_bonus = 10
+
+[[entries]]
+type = "currency"
+id = "transmute"
+count = [1, 3]
+weight = 25
+
+[[entries]]
+type = "currency"
+id = "augment"
+count = [1, 2]
+weight = 15

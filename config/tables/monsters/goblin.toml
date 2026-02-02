@@ -1,0 +1,52 @@
+[table]
+id = "goblin"
+
+[[table.rolls]]
+count = 1
+weight = 50
+
+[[table.rolls]]
+count = 2
+weight = 30
+
+[[table.rolls]]
+count = 3
+weight = 20
+
+[[entries]]
+type = "no_drop"
+weight = 100
+
+[[entries]]
+type = "item"
+base_type = "iron_sword"
+currencies = ["transmute", "augment"]
+weight = 10
+rarity_bonus = 15
+min_level = 1
+max_level = 30
+
+[[entries]]
+type = "item"
+base_type = "leather_boots"
+currencies = ["transmute"]
+weight = 8
+rarity_bonus = 10
+min_level = 1
+
+[[entries]]
+type = "currency"
+id = "transmute"
+count = [1, 2]
+weight = 15
+
+[[entries]]
+type = "currency"
+id = "augment"
+count = 1
+weight = 10
+
+[[entries]]
+type = "table"
+id = "gems_common"
+weight = 15

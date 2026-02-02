@@ -1,0 +1,24 @@
+[table]
+id = "gems_common"
+
+[[entries]]
+type = "currency"
+id = "imbue_fire"
+count = 1
+weight = 30
+
+[[entries]]
+type = "currency"
+id = "imbue_life"
+count = 1
+weight = 30
+
+[[entries]]
+type = "currency"
+id = "imbue_elemental"
+count = 1
+weight = 20
+
+[[entries]]
+type = "no_drop"
+weight = 20
