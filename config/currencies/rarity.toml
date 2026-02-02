@@ -1,0 +1,60 @@
+# Rarity Currencies - Change item rarity
+
+# Normal -> Magic (1 affix)
+[[currencies]]
+id = "transmute"
+name = "Orb of Transmutation"
+description = "Upgrades a normal item to magic"
+category = "Rarity"
+
+[currencies.requires]
+rarities = ["normal"]
+
+[currencies.effects]
+set_rarity = "magic"
+add_affixes = { min = 1, max = 1 }
+affix_pools = ["common"]
+
+# Magic -> Rare (add 2-3 more)
+[[currencies]]
+id = "regal"
+name = "Regal Orb"
+description = "Upgrades a magic item to rare"
+category = "Rarity"
+
+[currencies.requires]
+rarities = ["magic"]
+
+[currencies.effects]
+set_rarity = "rare"
+add_affixes = { min = 2, max = 3 }
+affix_pools = ["common"]
+
+# Normal -> Rare (4-6 affixes)
+[[currencies]]
+id = "alchemy"
+name = "Orb of Alchemy"
+description = "Transforms a normal item into a rare"
+category = "Rarity"
+
+[currencies.requires]
+rarities = ["normal"]
+
+[currencies.effects]
+set_rarity = "rare"
+add_affixes = { min = 4, max = 6 }
+affix_pools = ["common"]
+
+# Clear all affixes -> Normal
+[[currencies]]
+id = "scour"
+name = "Orb of Scouring"
+description = "Removes all affixes from an item"
+category = "Rarity"
+
+[currencies.requires]
+rarities = ["magic", "rare"]
+
+[currencies.effects]
+set_rarity = "normal"
+clear_affixes = true

@@ -1,0 +1,53 @@
+# Accessory Base Types - Minimal set
+
+# Ring with physical implicit
+[[base_types]]
+id = "iron_ring"
+name = "Iron Ring"
+class = "ring"
+tags = ["ring", "physical", "strength", "attack"]
+requirements = { level = 1 }
+
+[base_types.implicit]
+stat = "added_physical_damage"
+min = 1
+max = 4
+
+# Ring with fire resistance implicit
+[[base_types]]
+id = "ruby_ring"
+name = "Ruby Ring"
+class = "ring"
+tags = ["ring", "fire", "elemental", "resistance"]
+requirements = { level = 10 }
+
+[base_types.implicit]
+stat = "fire_resistance"
+min = 20
+max = 30
+
+# Amulet with attribute
+[[base_types]]
+id = "amber_amulet"
+name = "Amber Amulet"
+class = "amulet"
+tags = ["amulet", "strength", "physical", "melee"]
+requirements = { level = 5 }
+
+[base_types.implicit]
+stat = "added_strength"
+min = 20
+max = 30
+
+# Belt with life
+[[base_types]]
+id = "leather_belt"
+name = "Leather Belt"
+class = "belt"
+tags = ["belt", "life", "defense"]
+requirements = { level = 1 }
+
+[base_types.implicit]
+stat = "added_life"
+min = 25
+max = 40

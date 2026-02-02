@@ -1,0 +1,14 @@
+# Unique Transformation Currency
+
+[[currencies]]
+id = "chance"
+name = "Orb of Chance"
+description = "Attempts to transform into a unique (requires matching affixes)"
+category = "Unique"
+
+[currencies.requires]
+rarities = ["magic", "rare"]
+has_affix = true
+
+[currencies.effects]
+try_unique = true

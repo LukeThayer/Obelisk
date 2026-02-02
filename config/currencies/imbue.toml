@@ -1,0 +1,76 @@
+[[currencies]]
+id = "imbue_fire"
+name = "Ember Imbue"
+description = "Imbues with fire damage, upgrading to magic"
+category = "Imbue"
+
+[currencies.requires]
+rarities = ["normal"]
+has_affix = false
+has_affix_slot = false
+
+[currencies.effects]
+set_rarity = "magic"
+clear_affixes = false
+try_unique = false
+affix_pools = []
+
+[[currencies.effects.add_specific_affix]]
+id = "added_fire_damage"
+weight = 100
+
+[[currencies]]
+id = "imbue_life"
+name = "Vitality Imbue"
+description = "Imbues with life, upgrading to magic"
+category = "Imbue"
+
+[currencies.requires]
+rarities = ["normal"]
+has_affix = false
+has_affix_slot = false
+
+[currencies.effects]
+set_rarity = "magic"
+clear_affixes = false
+try_unique = false
+affix_pools = []
+
+[[currencies.effects.add_specific_affix]]
+id = "acc_added_life"
+tier = 1
+weight = 100
+
+[[currencies.effects.add_specific_affix]]
+id = "added_life"
+tier = 1
+weight = 100
+
+[[currencies]]
+id = "imbue_elemental"
+name = "Prismatic Imbue"
+description = "Imbues with random elemental damage"
+category = "Imbue"
+
+[currencies.requires]
+rarities = ["normal"]
+has_affix = false
+has_affix_slot = false
+
+[currencies.effects]
+set_rarity = "magic"
+clear_affixes = false
+try_unique = false
+affix_pools = []
+
+[[currencies.effects.add_specific_affix]]
+id = "added_fire_damage"
+weight = 100
+
+[[currencies.effects.add_specific_affix]]
+id = "added_cold_damage"
+weight = 100
+
+[[currencies.effects.add_specific_affix]]
+id = "added_lightning_damage"
+weight = 100

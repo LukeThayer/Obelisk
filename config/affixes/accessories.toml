@@ -1,0 +1,185 @@
+# Accessory Affixes - Minimal set for rings, amulets, belts
+
+# PREFIXES
+
+[[affixes]]
+id = "acc_added_life"
+name = "Healthy"
+type = "prefix"
+stat = "added_life"
+scope = "global"
+tags = ["ring", "amulet", "belt", "life", "defense"]
+allowed_classes = ["ring", "amulet", "belt"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 60
+max = 79
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 40
+max = 59
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 20
+max = 39
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_added_physical"
+name = "Heavy"
+type = "prefix"
+stat = "added_physical_damage"
+scope = "global"
+tags = ["ring", "physical", "attack", "damage"]
+allowed_classes = ["ring"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 8
+max = 12
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 4
+max = 7
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 1
+max = 3
+min_ilvl = 1
+
+# SUFFIXES
+
+[[affixes]]
+id = "acc_fire_resist"
+name = "of the Salamander"
+type = "suffix"
+stat = "fire_resistance"
+scope = "global"
+tags = ["ring", "amulet", "belt", "fire", "resistance"]
+allowed_classes = ["ring", "amulet", "belt"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 150
+min = 30
+max = 40
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 400
+min = 18
+max = 29
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 800
+min = 8
+max = 17
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_cold_resist"
+name = "of the Yeti"
+type = "suffix"
+stat = "cold_resistance"
+scope = "global"
+tags = ["ring", "amulet", "belt", "cold", "resistance"]
+allowed_classes = ["ring", "amulet", "belt"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 150
+min = 30
+max = 40
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 400
+min = 18
+max = 29
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 800
+min = 8
+max = 17
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_lightning_resist"
+name = "of the Storm"
+type = "suffix"
+stat = "lightning_resistance"
+scope = "global"
+tags = ["ring", "amulet", "belt", "lightning", "resistance"]
+allowed_classes = ["ring", "amulet", "belt"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 150
+min = 30
+max = 40
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 400
+min = 18
+max = 29
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 800
+min = 8
+max = 17
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_strength"
+name = "of the Giant"
+type = "suffix"
+stat = "added_strength"
+scope = "global"
+tags = ["ring", "amulet", "belt", "strength"]
+allowed_classes = ["ring", "amulet", "belt"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 200
+min = 35
+max = 50
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 500
+min = 20
+max = 34
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 1000
+min = 8
+max = 19
+min_ilvl = 1

@@ -1,0 +1,75 @@
+# Affix Modification Currencies
+
+# Add affix to magic item
+[[currencies]]
+id = "augment"
+name = "Orb of Augmentation"
+description = "Adds an affix to a magic item"
+category = "Crafting"
+
+[currencies.requires]
+rarities = ["magic"]
+has_affix_slot = true
+
+[currencies.effects]
+add_affixes = { min = 1, max = 1 }
+affix_pools = ["common"]
+
+# Add affix to rare item
+[[currencies]]
+id = "exalt"
+name = "Exalted Orb"
+description = "Adds an affix to a rare item"
+category = "Crafting"
+
+[currencies.requires]
+rarities = ["rare"]
+has_affix_slot = true
+
+[currencies.effects]
+add_affixes = { min = 1, max = 1 }
+affix_pools = ["common"]
+
+# Remove random affix
+[[currencies]]
+id = "annul"
+name = "Orb of Annulment"
+description = "Removes a random affix"
+category = "Crafting"
+
+[currencies.requires]
+rarities = ["magic", "rare"]
+has_affix = true
+
+[currencies.effects]
+remove_affixes = 1
+
+# Reroll all affixes (rare only)
+[[currencies]]
+id = "chaos"
+name = "Chaos Orb"
+description = "Rerolls a rare item with new random affixes"
+category = "Crafting"
+
+[currencies.requires]
+rarities = ["rare"]
+
+[currencies.effects]
+clear_affixes = true
+add_affixes = { min = 4, max = 6 }
+affix_pools = ["common"]
+
+# Reroll one affix
+[[currencies]]
+id = "divine"
+name = "Divine Orb"
+description = "Rerolls one random affix"
+category = "Crafting"
+
+[currencies.requires]
+rarities = ["magic", "rare"]
+has_affix = true
+
+[currencies.effects]
+reroll_affixes = 1
+affix_pools = ["common"]

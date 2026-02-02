@@ -1,0 +1,77 @@
+# Armour Base Types - Minimal set showing defense types
+
+# Pure armour
+[[base_types]]
+id = "plate_vest"
+name = "Plate Vest"
+class = "body_armour"
+tags = ["armour", "strength", "defense", "physical", "life"]
+requirements = { level = 10, strength = 30 }
+
+[base_types.defenses]
+armour = { min = 80, max = 100 }
+
+# Pure evasion
+[[base_types]]
+id = "leather_vest"
+name = "Leather Vest"
+class = "body_armour"
+tags = ["evasion", "dexterity", "defense", "attack", "life"]
+requirements = { level = 8, dexterity = 25 }
+
+[base_types.defenses]
+evasion = { min = 60, max = 80 }
+
+# Pure energy shield
+[[base_types]]
+id = "silk_robe"
+name = "Silk Robe"
+class = "body_armour"
+tags = ["energy_shield", "intelligence", "caster", "elemental", "life"]
+requirements = { level = 12, intelligence = 35 }
+
+[base_types.defenses]
+energy_shield = { min = 40, max = 55 }
+
+# Boots with movement speed implicit
+[[base_types]]
+id = "leather_boots"
+name = "Leather Boots"
+class = "boots"
+tags = ["evasion", "dexterity", "defense", "speed"]
+requirements = { level = 4, dexterity = 12 }
+
+[base_types.defenses]
+evasion = { min = 15, max = 25 }
+
+[base_types.implicit]
+stat = "increased_movement_speed"
+min = 15
+max = 20
+
+# Gloves for unique recipe demo
+[[base_types]]
+id = "iron_gauntlets"
+name = "Iron Gauntlets"
+class = "gloves"
+tags = ["armour", "strength", "attack", "melee", "physical"]
+requirements = { level = 5, strength = 15 }
+
+[base_types.defenses]
+armour = { min = 15, max = 25 }
+
+# Shield showing hybrid defense
+[[base_types]]
+id = "iron_shield"
+name = "Iron Shield"
+class = "shield"
+tags = ["armour", "strength", "defense", "life"]
+requirements = { level = 8, strength = 20 }
+
+[base_types.defenses]
+armour = { min = 40, max = 60 }
+
+[base_types.implicit]
+stat = "all_resistances"
+min = 5
+max = 10

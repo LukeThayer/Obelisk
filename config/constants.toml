@@ -1,0 +1,21 @@
+# Tunable game constants
+
+[resistances]
+max_cap = 100          # Maximum resistance percentage (100 = immunity)
+min_value = -200       # Minimum resistance (can go negative)
+penetration_vs_capped = 0.5  # Penetration effectiveness vs capped resists
+
+[armour]
+# Formula: reduction = armour / (armour + constant * damage)
+damage_constant = 5.0
+
+[crit]
+base_multiplier = 1.5  # 150% base crit damage
+
+[leech]
+max_life_leech_rate = 0.20  # Max 20% of life leeched per second
+max_mana_leech_rate = 0.20
+
+[energy_shield]
+# ES does NOT passively regenerate - must be applied via warding spells
+damage_priority = "first"  # ES takes damage before life

@@ -1,0 +1,100 @@
+# DoT type definitions
+
+[[dot_types]]
+id = "burn"
+name = "Burn"
+damage_type = "fire"
+base_duration = 4.0
+tick_rate = 0.5
+base_damage_percent = 0.25  # 25% of status damage as DPS
+
+[dot_types.stacking]
+type = "strongest_only"
+
+[[dot_types]]
+id = "poison"
+name = "Poison"
+damage_type = "chaos"
+base_duration = 2.0
+tick_rate = 0.33
+base_damage_percent = 0.20  # 20% of status damage as DPS
+max_stacks = 999
+stack_effectiveness = 1.0
+
+[dot_types.stacking]
+type = "unlimited"
+
+[[dot_types]]
+id = "bleed"
+name = "Bleed"
+damage_type = "physical"
+base_duration = 5.0
+tick_rate = 1.0
+base_damage_percent = 0.20  # 20% of status damage as DPS
+max_stacks = 8
+stack_effectiveness = 0.5
+moving_multiplier = 2.0  # Bleed deals double damage while moving
+
+[dot_types.stacking]
+type = "limited"
+max_stacks = 8
+stack_effectiveness = 0.5
+
+[[dot_types]]
+id = "freeze"
+name = "Freeze"
+damage_type = "cold"
+base_duration = 0.5
+tick_rate = 0.1
+base_damage_percent = 0.0  # Non-damaging status
+
+[dot_types.stacking]
+type = "strongest_only"
+
+[[dot_types]]
+id = "chill"
+name = "Chill"
+damage_type = "cold"
+base_duration = 2.0
+tick_rate = 0.5
+base_damage_percent = 0.0  # Non-damaging status (slows target)
+
+[dot_types.stacking]
+type = "strongest_only"
+
+[[dot_types]]
+id = "static"
+name = "Static"
+damage_type = "lightning"
+base_duration = 1.0
+tick_rate = 0.25
+base_damage_percent = 0.0  # Non-damaging status (increased damage taken)
+max_stacks = 3
+stack_effectiveness = 1.0
+
+[dot_types.stacking]
+type = "limited"
+max_stacks = 3
+stack_effectiveness = 1.0
+
+[[dot_types]]
+id = "fear"
+name = "Fear"
+damage_type = "chaos"
+base_duration = 1.5
+tick_rate = 0.5
+base_damage_percent = 0.0  # Non-damaging status (flees)
+
+[dot_types.stacking]
+type = "strongest_only"
+
+[[dot_types]]
+id = "slow"
+name = "Slow"
+damage_type = "physical"
+base_duration = 3.0
+tick_rate = 0.5
+base_damage_percent = 0.0  # Non-damaging status (reduced speed)
+
+[dot_types.stacking]
+type = "strongest_only"
