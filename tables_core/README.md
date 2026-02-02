@@ -27,7 +27,7 @@ for id in tables.table_ids() {
 ### Rolling Drops
 
 ```rust
-use tables_core::{DropTableRegistry, Drop};
+use tables_core::{DropTableRegistry, DropsExt};
 use rand::thread_rng;
 
 let tables = DropTableRegistry::load(Path::new("config/tables"))?;
@@ -42,27 +42,27 @@ let drops = tables.roll(
     &mut rng,
 )?;
 
-// Process the drops
-for drop in drops {
-    match drop {
-        Drop::Item { base_type, currencies } => {
-            println!("Dropped item: {}", base_type);
-            println!("  Apply currencies: {:?}", currencies);
-        }
-        Drop::Currency { id, count } => {
-            println!("Dropped {} x {}", count, id);
-        }
-        Drop::Unique { id } => {
-            println!("Dropped unique: {}", id);
-        }
-    }
+// Process items
+for item in drops.get_items() {
+    println!("Dropped item: {}", item.base_type);
+    println!("  Apply currencies: {:?}", item.currencies);
+}
+
+// Process currencies
+for currency in drops.get_currencies() {
+    println!("Dropped {} x {}", currency.count, currency.id);
+}
+
+// Process uniques
+for unique in drops.get_uniques() {
+    println!("Dropped unique: {}", unique.id);
 }
 ```
 
 ### Integration with loot_core
 
 ```rust
-use tables_core::{DropTableRegistry, Drop};
+use tables_core::{DropTableRegistry, DropsExt};
 use loot_core::{Generator, Config};
 
 let config = Config::load_from_dir(Path::new("config"))?;
@@ -72,27 +72,24 @@ let tables = DropTableRegistry::load(Path::new("config/tables"))?;
 let mut rng = rand::thread_rng();
 let drops = tables.roll("boss", 1.5, 1.0, 50, &mut rng)?;
 
-for drop in drops {
-    match drop {
-        Drop::Item { base_type, currencies } => {
-            // Generate the base item
-            let mut item = generator.generate(&base_type, rng.gen())?;
-
-            // Apply each currency in sequence
-            for currency_id in currencies {
-                item = generator.apply_currency(&item, &currency_id)?;
-            }
-
-            inventory.add(item);
-        }
-        Drop::Currency { id, count } => {
-            player.add_currency(&id, count);
-        }
-        Drop::Unique { id } => {
-            let item = generator.generate_unique(&id, rng.gen())?;
-            inventory.add(item);
-        }
+// Generate items and apply currencies
+for item in drops.get_items() {
+    let mut generated = generator.generate(item.base_type, rng.gen())?;
+    for currency_id in item.currencies {
+        generated = generator.apply_currency(&generated, currency_id)?;
     }
+    inventory.add(generated);
+}
+
+// Add currencies to player
+for currency in drops.get_currencies() {
+    player.add_currency(currency.id, currency.count);
+}
+
+// Generate uniques
+for unique in drops.get_uniques() {
+    let generated = generator.generate_unique(unique.id, rng.gen())?;
+    inventory.add(generated);
 }
 ```
 

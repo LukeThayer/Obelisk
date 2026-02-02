@@ -10,8 +10,8 @@ A Rust game mechanics library for action RPGs. Three crates that work together:
 
 ```rust
 use loot_core::{Config, Generator};
-use tables_core::{DropTableRegistry, Drop};
-use stat_core::{StatBlock, EquipmentSlot, default_skills};
+use tables_core::{DropTableRegistry, DropsExt};
+use stat_core::{StatBlock, default_skills};
 use stat_core::damage::calculate_damage;
 use stat_core::combat::resolve_damage;
 use rand::thread_rng;
@@ -28,24 +28,24 @@ fn main() {
     // Roll a drop table for loot
     let drops = tables.roll("goblin", 1.0, 1.0, 15, &mut rng).unwrap();
 
-    for drop in drops {
-        match drop {
-            Drop::Item { base_type, currencies } => {
-                // Generate item and apply currencies
-                let mut item = generator.generate(&base_type, rng.gen()).unwrap();
-                for currency in currencies {
-                    item = generator.apply_currency(&item, &currency).unwrap();
-                }
-                println!("Dropped: {}", item.name());
-            }
-            Drop::Currency { id, count } => {
-                println!("Dropped {} x {}", count, id);
-            }
-            Drop::Unique { id } => {
-                let item = generator.generate_unique(&id, rng.gen()).unwrap();
-                println!("Dropped unique: {}", item.name());
-            }
+    // Process item drops
+    for item in drops.get_items() {
+        let mut generated = generator.generate(item.base_type, rng.gen()).unwrap();
+        for currency in item.currencies {
+            generated = generator.apply_currency(&generated, currency).unwrap();
         }
+        println!("Dropped: {}", generated.name());
+    }
+
+    // Process currency drops
+    for currency in drops.get_currencies() {
+        println!("Dropped {} x {}", currency.count, currency.id);
+    }
+
+    // Process unique drops
+    for unique in drops.get_uniques() {
+        let generated = generator.generate_unique(unique.id, rng.gen()).unwrap();
+        println!("Dropped unique: {}", generated.name());
     }
 
     // Equip items and manage stats with stat_core

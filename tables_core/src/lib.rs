@@ -3,7 +3,7 @@ mod drop;
 mod registry;
 mod table;
 
-pub use drop::Drop;
+pub use drop::{CurrencyDrop, Drop, DropsExt, ItemDrop, UniqueDrop};
 pub use registry::DropTableRegistry;
 
 use std::path::PathBuf;
