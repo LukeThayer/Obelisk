@@ -1,6 +1,6 @@
 //! Armour - Physical damage reduction with diminishing returns
 
-use super::constants::ARMOUR_CONSTANT;
+use crate::config::constants;
 
 /// Calculate physical damage reduction from armour
 ///
@@ -24,7 +24,8 @@ pub fn calculate_armour_reduction(armour: f64, damage: f64) -> f64 {
         return damage;
     }
 
-    let reduction_percent = armour / (armour + ARMOUR_CONSTANT * damage);
+    let constant = constants().armour.damage_constant;
+    let reduction_percent = armour / (armour + constant * damage);
     let reduced = damage * (1.0 - reduction_percent);
 
     reduced.max(0.0)
@@ -36,7 +37,8 @@ pub fn armour_reduction_percent(armour: f64, damage: f64) -> f64 {
         return 0.0;
     }
 
-    (armour / (armour + ARMOUR_CONSTANT * damage) * 100.0).clamp(0.0, 100.0)
+    let constant = constants().armour.damage_constant;
+    (armour / (armour + constant * damage) * 100.0).clamp(0.0, 100.0)
 }
 
 /// Calculate how much armour is needed to reduce damage by a target percentage
@@ -55,28 +57,37 @@ pub fn armour_needed_for_reduction(damage: f64, target_reduction_percent: f64) -
     // reduction * C * damage = armour * (1 - reduction)
     // armour = (reduction * C * damage) / (1 - reduction)
 
+    let constant = constants().armour.damage_constant;
     let reduction = target_reduction_percent / 100.0;
-    (reduction * ARMOUR_CONSTANT * damage) / (1.0 - reduction)
+    (reduction * constant * damage) / (1.0 - reduction)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::ensure_constants_initialized;
+
+    fn setup() {
+        ensure_constants_initialized();
+    }
 
     #[test]
     fn test_no_armour() {
+        setup();
         let result = calculate_armour_reduction(0.0, 100.0);
         assert!((result - 100.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_no_damage() {
+        setup();
         let result = calculate_armour_reduction(1000.0, 0.0);
         assert!((result - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_armour_vs_small_hit() {
+        setup();
         // 1000 armour vs 100 damage
         // Reduction = 1000 / (1000 + 5 * 100) = 1000 / 1500 = 66.67%
         // Damage taken = 100 * (1 - 0.6667) = 33.33
@@ -86,6 +97,7 @@ mod tests {
 
     #[test]
     fn test_armour_vs_large_hit() {
+        setup();
         // 1000 armour vs 1000 damage
         // Reduction = 1000 / (1000 + 5 * 1000) = 1000 / 6000 = 16.67%
         // Damage taken = 1000 * (1 - 0.1667) = 833.33
@@ -95,6 +107,7 @@ mod tests {
 
     #[test]
     fn test_diminishing_returns() {
+        setup();
         let armour = 1000.0;
 
         // Small hit should have higher reduction %
@@ -106,6 +119,7 @@ mod tests {
 
     #[test]
     fn test_armour_needed() {
+        setup();
         // How much armour to reduce 1000 damage by 50%?
         let needed = armour_needed_for_reduction(1000.0, 50.0);
         // Should be 5000 armour
@@ -118,6 +132,7 @@ mod tests {
 
     #[test]
     fn test_high_armour() {
+        setup();
         // Very high armour vs small hit
         let result = calculate_armour_reduction(10000.0, 10.0);
         // 10000 / (10000 + 50) = 99.5% reduction

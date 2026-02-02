@@ -1,5 +1,6 @@
 //! Core types specific to stat_manager
 
+use crate::dot::{DotConfig, DotStacking};
 use loot_core::types::StatusEffect;
 use serde::{Deserialize, Serialize};
 
@@ -157,138 +158,39 @@ impl Effect {
         }
     }
 
-    // === Ailment Constructors ===
+    /// Create an ailment effect from a DotConfig
+    ///
+    /// This is the preferred way to create status effects - it uses configuration
+    /// from the DoT registry rather than hardcoded values.
+    pub fn from_config(
+        config: &DotConfig,
+        status: StatusEffect,
+        duration: f64,
+        magnitude: f64,
+        dot_dps: f64,
+        source_id: impl Into<String>,
+    ) -> Self {
+        let stacking = match &config.stacking {
+            DotStacking::StrongestOnly => AilmentStacking::StrongestOnly,
+            DotStacking::Unlimited => AilmentStacking::Unlimited,
+            DotStacking::Limited { stack_effectiveness, .. } => {
+                AilmentStacking::Limited { stack_effectiveness: *stack_effectiveness }
+            }
+        };
 
-    /// Create a Poison effect (Chaos DoT, unlimited stacking)
-    /// - Duration: 2.0s
-    /// - Tick rate: 0.33s
-    /// - Stacking: Unlimited
-    pub fn poison(dot_dps: f64, source_id: impl Into<String>) -> Self {
-        Self::new_ailment(
-            "poison", "Poison", StatusEffect::Poison,
-            2.0, 0.0, dot_dps, 0.33,
-            AilmentStacking::Unlimited,
-            source_id,
-        )
-    }
-
-    /// Create a Bleed effect (Physical DoT, limited stacking)
-    /// - Duration: 5.0s
-    /// - Tick rate: 1.0s
-    /// - Stacking: Limited (50% effectiveness for additional stacks)
-    /// - Note: Deals 2x damage while target is moving (handled externally)
-    pub fn bleed(dot_dps: f64, source_id: impl Into<String>) -> Self {
         let mut effect = Self::new_ailment(
-            "bleed", "Bleed", StatusEffect::Bleed,
-            5.0, 0.0, dot_dps, 1.0,
-            AilmentStacking::Limited { stack_effectiveness: 0.5 },
+            &config.id,
+            &config.name,
+            status,
+            duration,
+            magnitude,
+            dot_dps,
+            config.tick_rate,
+            stacking,
             source_id,
         );
-        effect.max_stacks = 8;
+        effect.max_stacks = config.max_stacks;
         effect
-    }
-
-    /// Create a Burn effect (Fire DoT, strongest only)
-    /// - Duration: 4.0s
-    /// - Tick rate: 0.5s
-    /// - Stacking: Strongest only
-    pub fn burn(dot_dps: f64, source_id: impl Into<String>) -> Self {
-        Self::new_ailment(
-            "burn", "Burn", StatusEffect::Burn,
-            4.0, 0.0, dot_dps, 0.5,
-            AilmentStacking::StrongestOnly,
-            source_id,
-        )
-    }
-
-    /// Create a Freeze effect (Cold, no damage, strongest only)
-    /// - Duration: 0.5s (short immobilization)
-    /// - Stacking: Strongest only
-    pub fn freeze(magnitude: f64, source_id: impl Into<String>) -> Self {
-        Self::new_ailment(
-            "freeze", "Freeze", StatusEffect::Freeze,
-            0.5, magnitude, 0.0, 0.1,
-            AilmentStacking::StrongestOnly,
-            source_id,
-        )
-    }
-
-    /// Create a Chill effect (Cold, no damage, strongest only)
-    /// - Duration: 2.0s
-    /// - Magnitude: slow percentage
-    /// - Stacking: Strongest only
-    pub fn chill(magnitude: f64, source_id: impl Into<String>) -> Self {
-        Self::new_ailment(
-            "chill", "Chill", StatusEffect::Chill,
-            2.0, magnitude, 0.0, 0.5,
-            AilmentStacking::StrongestOnly,
-            source_id,
-        )
-    }
-
-    /// Create a Static/Shock effect (Lightning, no damage, limited stacking)
-    /// - Duration: 1.0s
-    /// - Magnitude: increased damage taken
-    /// - Stacking: Limited (up to 3 stacks)
-    pub fn shock(magnitude: f64, source_id: impl Into<String>) -> Self {
-        let mut effect = Self::new_ailment(
-            "static", "Static", StatusEffect::Static,
-            1.0, magnitude, 0.0, 0.25,
-            AilmentStacking::Limited { stack_effectiveness: 1.0 },
-            source_id,
-        );
-        effect.max_stacks = 3;
-        effect
-    }
-
-    /// Create a Fear effect (Chaos, no damage, strongest only)
-    /// - Duration: 1.5s
-    /// - Stacking: Strongest only
-    pub fn fear(magnitude: f64, source_id: impl Into<String>) -> Self {
-        Self::new_ailment(
-            "fear", "Fear", StatusEffect::Fear,
-            1.5, magnitude, 0.0, 0.5,
-            AilmentStacking::StrongestOnly,
-            source_id,
-        )
-    }
-
-    /// Create a Slow effect (Physical/Cold, no damage, strongest only)
-    /// - Duration: 3.0s
-    /// - Magnitude: slow percentage
-    /// - Stacking: Strongest only
-    pub fn slow(magnitude: f64, source_id: impl Into<String>) -> Self {
-        Self::new_ailment(
-            "slow", "Slow", StatusEffect::Slow,
-            3.0, magnitude, 0.0, 0.5,
-            AilmentStacking::StrongestOnly,
-            source_id,
-        )
-    }
-
-    /// Get the base duration for a status effect type
-    pub fn base_duration_for(status: StatusEffect) -> f64 {
-        match status {
-            StatusEffect::Poison => 2.0,
-            StatusEffect::Bleed => 5.0,
-            StatusEffect::Burn => 4.0,
-            StatusEffect::Freeze => 0.5,
-            StatusEffect::Chill => 2.0,
-            StatusEffect::Static => 1.0,
-            StatusEffect::Fear => 1.5,
-            StatusEffect::Slow => 3.0,
-        }
-    }
-
-    /// Get the base DoT damage percentage for a status effect type
-    /// Returns the percentage of status damage that becomes DPS
-    pub fn base_dot_percent_for(status: StatusEffect) -> f64 {
-        match status {
-            StatusEffect::Poison => 0.20,  // 20%
-            StatusEffect::Bleed => 0.20,   // 20%
-            StatusEffect::Burn => 0.25,    // 25%
-            _ => 0.0,  // Non-damaging
-        }
     }
 
     /// Check if the effect is still active
@@ -458,115 +360,3 @@ impl From<String> for SkillNodeId {
     }
 }
 
-/// Active buff/debuff on an entity
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActiveBuff {
-    /// Buff identifier
-    pub buff_id: String,
-    /// Display name
-    pub name: String,
-    /// Time remaining in seconds
-    pub duration_remaining: f64,
-    /// Current stack count
-    pub stacks: u32,
-    /// Whether this is a debuff (negative effect)
-    pub is_debuff: bool,
-}
-
-/// Active status effect on an entity (freeze, chill, burn, etc.)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActiveStatusEffect {
-    /// The type of status effect
-    pub effect_type: loot_core::types::StatusEffect,
-    /// Time remaining in seconds
-    pub duration_remaining: f64,
-    /// Current stack count
-    pub stacks: u32,
-    /// Effect magnitude (e.g., slow percentage)
-    pub magnitude: f64,
-    /// Damage per second for damaging statuses (Poison, Bleed, Burn)
-    pub dot_dps: f64,
-    /// Source entity ID that applied this effect
-    pub source_id: String,
-}
-
-impl ActiveStatusEffect {
-    pub fn new(
-        effect_type: loot_core::types::StatusEffect,
-        duration: f64,
-        magnitude: f64,
-        source_id: String,
-    ) -> Self {
-        ActiveStatusEffect {
-            effect_type,
-            duration_remaining: duration,
-            stacks: 1,
-            magnitude,
-            dot_dps: 0.0,
-            source_id,
-        }
-    }
-
-    /// Create a new status effect with DoT damage
-    pub fn new_with_dot(
-        effect_type: loot_core::types::StatusEffect,
-        duration: f64,
-        magnitude: f64,
-        dot_dps: f64,
-        source_id: String,
-    ) -> Self {
-        ActiveStatusEffect {
-            effect_type,
-            duration_remaining: duration,
-            stacks: 1,
-            magnitude,
-            dot_dps,
-            source_id,
-        }
-    }
-
-    /// Check if the effect is still active
-    pub fn is_active(&self) -> bool {
-        self.duration_remaining > 0.0 && self.stacks > 0
-    }
-
-    /// Check if this is a damaging status effect
-    pub fn is_damaging(&self) -> bool {
-        use loot_core::types::StatusEffect;
-        matches!(
-            self.effect_type,
-            StatusEffect::Poison | StatusEffect::Bleed | StatusEffect::Burn
-        )
-    }
-
-    /// Get damage for a tick (damage = dot_dps * delta * stacks)
-    pub fn tick_damage(&self, delta: f64) -> f64 {
-        self.dot_dps * delta * self.stacks as f64
-    }
-
-    /// Tick the effect duration, returns damage dealt this tick
-    pub fn tick(&mut self, delta: f64) -> f64 {
-        let damage = if self.is_damaging() {
-            self.tick_damage(delta)
-        } else {
-            0.0
-        };
-        self.duration_remaining -= delta;
-        damage
-    }
-
-    /// Add a stack (also increases DoT damage proportionally)
-    pub fn add_stack(&mut self, max_stacks: u32) {
-        if self.stacks < max_stacks {
-            self.stacks += 1;
-        }
-    }
-
-    /// Refresh duration and update dot_dps if new is higher
-    pub fn refresh(&mut self, duration: f64, dot_dps: f64) {
-        self.duration_remaining = duration;
-        if dot_dps > self.dot_dps {
-            self.dot_dps = dot_dps;
-        }
-    }
-}

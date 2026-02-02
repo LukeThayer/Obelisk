@@ -1,9 +1,13 @@
-//! DoT configuration loading
+//! DoT configuration loading with global registry support
 
 use crate::dot::{DotConfig, DotRegistry};
 use super::ConfigError;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::OnceLock;
+
+/// Global DoT registry instance
+static DOT_REGISTRY: OnceLock<DotRegistry> = OnceLock::new();
 
 /// Container for DoT configurations
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,7 +16,36 @@ pub struct DotsConfig {
     pub dot_types: Vec<DotConfig>,
 }
 
-/// Load DoT configurations from a TOML file
+/// Initialize the global DoT registry from a config file
+pub fn init_dot_registry(path: &Path) -> Result<(), ConfigError> {
+    let registry = load_dot_configs(path)?;
+    DOT_REGISTRY.set(registry).ok();
+    Ok(())
+}
+
+/// Initialize the global DoT registry with default path (config/dots.toml)
+pub fn init_dot_registry_default() -> Result<(), ConfigError> {
+    init_dot_registry(Path::new("config/dots.toml"))
+}
+
+/// Get a reference to the global DoT registry
+/// Panics if not initialized - call init_dot_registry first
+pub fn dot_registry() -> &'static DotRegistry {
+    DOT_REGISTRY.get().expect("DoT registry not initialized. Call init_dot_registry() first.")
+}
+
+/// Check if the DoT registry has been initialized
+pub fn dot_registry_initialized() -> bool {
+    DOT_REGISTRY.get().is_some()
+}
+
+/// Ensure the DoT registry is initialized (for tests)
+/// Uses an empty registry if not already initialized
+pub fn ensure_dot_registry_initialized() {
+    DOT_REGISTRY.get_or_init(DotRegistry::new);
+}
+
+/// Load DoT configurations from a TOML file (returns registry, doesn't set global)
 pub fn load_dot_configs(path: &Path) -> Result<DotRegistry, ConfigError> {
     let config: DotsConfig = super::load_toml(path)?;
 
@@ -24,9 +57,9 @@ pub fn load_dot_configs(path: &Path) -> Result<DotRegistry, ConfigError> {
     Ok(registry)
 }
 
-/// Load DoT configurations from a TOML string
-pub fn parse_dot_configs(content: &str) -> Result<DotRegistry, ConfigError> {
-    let config: DotsConfig = super::parse_toml(content)?;
+/// Parse DoT configurations from a TOML string (for testing)
+pub fn parse_dot_configs(toml: &str) -> Result<DotRegistry, ConfigError> {
+    let config: DotsConfig = super::parse_toml(toml)?;
 
     let mut registry = DotRegistry::new();
     for dot in config.dot_types {

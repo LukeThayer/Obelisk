@@ -39,7 +39,7 @@ pub fn parse_skill_configs(content: &str) -> Result<HashMap<String, DamagePacket
 
 /// Get default skill configurations
 pub fn default_skills() -> HashMap<String, DamagePacketGenerator> {
-    let toml = include_str!("../../config/skills.toml");
+    let toml = include_str!("../../../config/skills.toml");
     parse_skill_configs(toml).unwrap_or_else(|_| {
         let mut map = HashMap::new();
         map.insert("basic_attack".to_string(), DamagePacketGenerator::basic_attack());

@@ -12,6 +12,7 @@ pub struct Config {
     pub currencies: HashMap<String, CurrencyConfig>,
     pub uniques: HashMap<String, UniqueConfig>,
     pub unique_recipes: Vec<UniqueRecipeConfig>,
+    pub rare_names: RareNamesConfig,
 }
 
 impl Config {
@@ -23,12 +24,14 @@ impl Config {
     ///     affix_pools/   - .toml files containing [[pools]] arrays
     ///     currencies/    - .toml files containing [[currencies]] arrays
     ///     uniques/       - .toml files each containing [unique] and optional [recipe]
+    ///     names.toml     - optional file containing [rare_names] section
     pub fn load_from_dir(dir: &Path) -> Result<Self, ConfigError> {
         let base_types = Self::load_base_types_dir(&dir.join("base_types"))?;
         let affixes = Self::load_affixes_dir(&dir.join("affixes"))?;
         let affix_pools = Self::load_affix_pools_dir(&dir.join("affix_pools"))?;
         let currencies = Self::load_currencies_dir(&dir.join("currencies"))?;
         let (uniques, unique_recipes) = Self::load_uniques_dir(&dir.join("uniques"))?;
+        let rare_names = Self::load_names(&dir.join("names.toml"))?;
 
         Ok(Config {
             base_types,
@@ -37,7 +40,20 @@ impl Config {
             currencies,
             uniques,
             unique_recipes,
+            rare_names,
         })
+    }
+
+    /// Load rare names configuration from names.toml
+    /// Returns default names if file doesn't exist
+    fn load_names(path: &Path) -> Result<RareNamesConfig, ConfigError> {
+        if !path.exists() {
+            return Ok(RareNamesConfig::default());
+        }
+
+        let content = Self::read_file_with_context(path)?;
+        let wrapper: NamesWrapper = Self::parse_toml_with_context(&content, path)?;
+        Ok(wrapper.rare_names)
     }
 
     /// Load all base type files from a directory
@@ -625,4 +641,51 @@ pub enum MappingMode {
     Direct,
     /// Ignore original value, roll randomly within unique's range
     Random,
+}
+
+/// Configuration for rare item name generation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RareNamesConfig {
+    /// Prefixes for rare item names (first word)
+    #[serde(default = "default_rare_prefixes")]
+    pub prefixes: Vec<String>,
+    /// Suffixes for rare item names (second word)
+    #[serde(default = "default_rare_suffixes")]
+    pub suffixes: Vec<String>,
+}
+
+impl Default for RareNamesConfig {
+    fn default() -> Self {
+        RareNamesConfig {
+            prefixes: default_rare_prefixes(),
+            suffixes: default_rare_suffixes(),
+        }
+    }
+}
+
+fn default_rare_prefixes() -> Vec<String> {
+    vec![
+        "Doom", "Wrath", "Storm", "Dread", "Soul", "Death", "Blood", "Shadow", "Grim", "Hate",
+        "Plague", "Blight", "Rune", "Spirit", "Mind", "Skull", "Bone", "Venom", "Foe", "Pain",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
+fn default_rare_suffixes() -> Vec<String> {
+    vec![
+        "Bane", "Edge", "Fang", "Bite", "Roar", "Song", "Call", "Cry", "Grasp", "Touch",
+        "Strike", "Blow", "Mark", "Brand", "Scar", "Ward", "Guard", "Veil", "Shroud", "Mantle",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
+/// Wrapper for names.toml parsing
+#[derive(Debug, Deserialize)]
+struct NamesWrapper {
+    #[serde(default)]
+    rare_names: RareNamesConfig,
 }

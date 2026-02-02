@@ -3,9 +3,9 @@
 //! Evasion interacts with the attacker's accuracy to determine a damage cap.
 //! Higher accuracy = higher cap, higher evasion = lower cap.
 //!
-//! Formula: damage_cap = accuracy / (1 + evasion / SCALE_FACTOR)
+//! Formula: damage_cap = accuracy / (1 + evasion / scale_factor)
 //!
-//! Examples (with SCALE_FACTOR = 1000):
+//! Examples (with scale_factor = 1000):
 //! - 2000 accuracy vs 0 evasion: cap = 2000 (no reduction)
 //! - 2000 accuracy vs 1000 evasion: cap = 1000 (50% reduction)
 //! - 2000 accuracy vs 3000 evasion: cap = 500 (75% reduction)
@@ -16,7 +16,7 @@
 //! - Evasion provides diminishing-returns protection against big hits
 //! - High evasion protects against one-shots from low-accuracy attackers
 
-use super::constants::EVASION_SCALE_FACTOR;
+use crate::config::constants;
 
 /// Calculate the damage cap based on accuracy vs evasion
 ///
@@ -29,7 +29,8 @@ pub fn calculate_damage_cap(accuracy: f64, evasion: f64) -> f64 {
         return accuracy; // No evasion = cap equals accuracy
     }
 
-    accuracy / (1.0 + evasion / EVASION_SCALE_FACTOR)
+    let scale_factor = constants().evasion.scale_factor;
+    accuracy / (1.0 + evasion / scale_factor)
 }
 
 /// Apply evasion cap to incoming damage
@@ -69,7 +70,8 @@ pub fn evasion_needed_for_cap(accuracy: f64, target_cap: f64) -> f64 {
     // 1 + evasion / SCALE = accuracy / target
     // evasion / SCALE = accuracy / target - 1
     // evasion = SCALE * (accuracy / target - 1)
-    EVASION_SCALE_FACTOR * (accuracy / target_cap - 1.0)
+    let scale_factor = constants().evasion.scale_factor;
+    scale_factor * (accuracy / target_cap - 1.0)
 }
 
 /// Calculate what percentage of incoming damage was evaded
@@ -85,9 +87,15 @@ pub fn evasion_effectiveness(accuracy: f64, evasion: f64, damage: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::ensure_constants_initialized;
+
+    fn setup() {
+        ensure_constants_initialized();
+    }
 
     #[test]
     fn test_damage_cap_no_evasion() {
+        setup();
         // No evasion = cap equals accuracy
         let cap = calculate_damage_cap(2000.0, 0.0);
         assert!((cap - 2000.0).abs() < f64::EPSILON);
@@ -95,6 +103,7 @@ mod tests {
 
     #[test]
     fn test_damage_cap_with_evasion() {
+        setup();
         // 2000 accuracy vs 1000 evasion: 2000 / (1 + 1000/1000) = 2000 / 2 = 1000
         let cap = calculate_damage_cap(2000.0, 1000.0);
         assert!((cap - 1000.0).abs() < f64::EPSILON);
@@ -102,6 +111,7 @@ mod tests {
 
     #[test]
     fn test_damage_cap_high_evasion() {
+        setup();
         // 2000 accuracy vs 3000 evasion: 2000 / (1 + 3000/1000) = 2000 / 4 = 500
         let cap = calculate_damage_cap(2000.0, 3000.0);
         assert!((cap - 500.0).abs() < f64::EPSILON);
@@ -109,6 +119,7 @@ mod tests {
 
     #[test]
     fn test_damage_cap_high_accuracy() {
+        setup();
         // 5000 accuracy vs 1000 evasion: 5000 / (1 + 1000/1000) = 5000 / 2 = 2500
         let cap = calculate_damage_cap(5000.0, 1000.0);
         assert!((cap - 2500.0).abs() < f64::EPSILON);
@@ -116,6 +127,7 @@ mod tests {
 
     #[test]
     fn test_damage_below_cap() {
+        setup();
         // 2000 accuracy vs 1000 evasion = 1000 cap, hit for 800
         let (taken, evaded) = apply_evasion_cap(2000.0, 1000.0, 800.0);
         assert!((taken - 800.0).abs() < f64::EPSILON);
@@ -124,6 +136,7 @@ mod tests {
 
     #[test]
     fn test_damage_above_cap() {
+        setup();
         // 2000 accuracy vs 1000 evasion = 1000 cap, hit for 1500
         let (taken, evaded) = apply_evasion_cap(2000.0, 1000.0, 1500.0);
         assert!((taken - 1000.0).abs() < f64::EPSILON);
@@ -132,6 +145,7 @@ mod tests {
 
     #[test]
     fn test_damage_at_cap() {
+        setup();
         // 2000 accuracy vs 1000 evasion = 1000 cap, hit for exactly 1000
         let (taken, evaded) = apply_evasion_cap(2000.0, 1000.0, 1000.0);
         assert!((taken - 1000.0).abs() < f64::EPSILON);
@@ -140,6 +154,7 @@ mod tests {
 
     #[test]
     fn test_no_evasion() {
+        setup();
         // 2000 accuracy vs 0 evasion = 2000 cap
         let (taken, evaded) = apply_evasion_cap(2000.0, 0.0, 1500.0);
         assert!((taken - 1500.0).abs() < f64::EPSILON);
@@ -148,6 +163,7 @@ mod tests {
 
     #[test]
     fn test_no_accuracy() {
+        setup();
         // 0 accuracy = 0 cap = no damage
         let (taken, evaded) = apply_evasion_cap(0.0, 1000.0, 1500.0);
         assert!((taken - 0.0).abs() < f64::EPSILON);
@@ -156,6 +172,7 @@ mod tests {
 
     #[test]
     fn test_triggered_cap() {
+        setup();
         // 2000 accuracy vs 1000 evasion = 1000 cap
         assert!(triggered_evasion_cap(2000.0, 1000.0, 1200.0));  // above cap
         assert!(!triggered_evasion_cap(2000.0, 1000.0, 800.0));  // below cap
@@ -164,6 +181,7 @@ mod tests {
 
     #[test]
     fn test_evasion_effectiveness() {
+        setup();
         // 2000 accuracy vs 1000 evasion = 1000 cap, 2000 damage = 1000 evaded = 50%
         let effectiveness = evasion_effectiveness(2000.0, 1000.0, 2000.0);
         assert!((effectiveness - 50.0).abs() < f64::EPSILON);
@@ -175,6 +193,7 @@ mod tests {
 
     #[test]
     fn test_higher_accuracy_counters_evasion() {
+        setup();
         // More accuracy = higher cap (less protection for defender)
         let low_acc_cap = calculate_damage_cap(1000.0, 1000.0);  // 500
         let high_acc_cap = calculate_damage_cap(4000.0, 1000.0); // 2000
@@ -184,6 +203,7 @@ mod tests {
 
     #[test]
     fn test_higher_evasion_is_better() {
+        setup();
         // More evasion = lower cap (more protection for defender)
         let low_eva_cap = calculate_damage_cap(2000.0, 500.0);   // 1333
         let high_eva_cap = calculate_damage_cap(2000.0, 2000.0); // 667
@@ -193,6 +213,7 @@ mod tests {
 
     #[test]
     fn test_evasion_needed() {
+        setup();
         // With 2000 accuracy, want a 1000 cap -> need 1000 evasion
         let needed = evasion_needed_for_cap(2000.0, 1000.0);
         assert!((needed - 1000.0).abs() < f64::EPSILON);

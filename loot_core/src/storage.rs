@@ -1,4 +1,4 @@
-use crate::generator::Generator;
+use crate::generator::{Generator, GeneratorError};
 use crate::item::Item;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -45,8 +45,8 @@ pub enum DecodeError {
     InvalidOperationType(u8),
     UnexpectedEof,
     InvalidStringIndex(u16),
-    /// Base type not found during reconstruction
-    BaseTypeNotFound(String),
+    /// Error during item reconstruction
+    Generator(GeneratorError),
 }
 
 impl std::fmt::Display for DecodeError {
@@ -59,7 +59,7 @@ impl std::fmt::Display for DecodeError {
             DecodeError::InvalidOperationType(t) => write!(f, "Invalid operation type: {}", t),
             DecodeError::UnexpectedEof => write!(f, "Unexpected end of data"),
             DecodeError::InvalidStringIndex(i) => write!(f, "Invalid string index: {}", i),
-            DecodeError::BaseTypeNotFound(id) => write!(f, "Base type not found: {}", id),
+            DecodeError::Generator(e) => write!(f, "Generator error: {}", e),
         }
     }
 }
@@ -69,6 +69,12 @@ impl std::error::Error for DecodeError {}
 impl From<io::Error> for DecodeError {
     fn from(e: io::Error) -> Self {
         DecodeError::Io(e)
+    }
+}
+
+impl From<GeneratorError> for DecodeError {
+    fn from(e: GeneratorError) -> Self {
+        DecodeError::Generator(e)
     }
 }
 
@@ -163,9 +169,7 @@ impl BinaryDecode for Item {
         }
 
         // Reconstruct the item
-        generator
-            .reconstruct(&base_type_id, seed, &operations)
-            .ok_or_else(|| DecodeError::BaseTypeNotFound(base_type_id))
+        Ok(generator.reconstruct(&base_type_id, seed, &operations)?)
     }
 }
 
@@ -371,9 +375,7 @@ impl BinaryDecode for ItemCollection {
             }
 
             // Reconstruct item
-            let item = generator
-                .reconstruct(&base_type_id, seed, &operations)
-                .ok_or_else(|| DecodeError::BaseTypeNotFound(base_type_id))?;
+            let item = generator.reconstruct(&base_type_id, seed, &operations)?;
 
             items.push(item);
         }

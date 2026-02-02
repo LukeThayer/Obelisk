@@ -7,12 +7,10 @@ mod stat_value;
 pub use aggregator::{StatAccumulator, StatusConversions, StatusEffectStats};
 pub use stat_value::StatValue;
 
-use crate::combat::CombatResult;
+use crate::combat::{resolve_damage, CombatResult};
 use crate::damage::{calculate_damage, DamagePacket, DamagePacketGenerator};
-use crate::dot::ActiveDoT;
-use crate::combat::resolve_damage;
 use crate::source::{BuffSource, GearSource, StatSource};
-use crate::types::{ActiveBuff, ActiveStatusEffect, AilmentStacking, Effect, EffectType, EquipmentSlot, TickResult};
+use crate::types::{AilmentStacking, Effect, EffectType, EquipmentSlot, TickResult};
 use loot_core::types::{DamageType, StatusEffect};
 use loot_core::Item;
 use serde::{Deserialize, Serialize};
@@ -91,18 +89,10 @@ pub struct StatBlock {
     pub item_rarity_increased: f64,
     pub item_quantity_increased: f64,
 
-    // === Active Effects (Unified) ===
-    /// Unified effects list (replaces active_dots, active_buffs, active_status_effects)
+    // === Active Effects ===
+    /// All active effects (buffs, debuffs, ailments)
     #[serde(default)]
     pub effects: Vec<Effect>,
-
-    // === Legacy Active Effects (kept for backwards compatibility during transition) ===
-    #[serde(default)]
-    pub active_dots: Vec<ActiveDoT>,
-    #[serde(default)]
-    pub active_buffs: Vec<ActiveBuff>,
-    #[serde(default)]
-    pub active_status_effects: Vec<ActiveStatusEffect>,
 
     // === Weapon Stats (from equipped weapon) ===
     pub weapon_physical_min: f64,
@@ -124,62 +114,34 @@ pub struct StatBlock {
     pub status_effect_stats: StatusEffectData,
 }
 
-/// Holds all status effect related stats
+/// Holds all status effect related stats (HashMap-based for extensibility)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StatusEffectData {
-    // Poison
-    pub poison: StatusEffectStats,
-    pub poison_conversions: StatusConversions,
-    // Bleed
-    pub bleed: StatusEffectStats,
-    pub bleed_conversions: StatusConversions,
-    // Burn
-    pub burn: StatusEffectStats,
-    pub burn_conversions: StatusConversions,
-    // Freeze
-    pub freeze: StatusEffectStats,
-    pub freeze_conversions: StatusConversions,
-    // Chill
-    pub chill: StatusEffectStats,
-    pub chill_conversions: StatusConversions,
-    // Static
-    pub static_effect: StatusEffectStats,
-    pub static_conversions: StatusConversions,
-    // Fear
-    pub fear: StatusEffectStats,
-    pub fear_conversions: StatusConversions,
-    // Slow
-    pub slow: StatusEffectStats,
-    pub slow_conversions: StatusConversions,
+    /// Stats for each status effect type
+    stats: HashMap<StatusEffect, StatusEffectStats>,
+    /// Conversion percentages for each status effect type
+    conversions: HashMap<StatusEffect, StatusConversions>,
 }
 
 impl StatusEffectData {
     /// Get stats for a given status effect
-    pub fn get_stats(&self, effect: StatusEffect) -> &StatusEffectStats {
-        match effect {
-            StatusEffect::Poison => &self.poison,
-            StatusEffect::Bleed => &self.bleed,
-            StatusEffect::Burn => &self.burn,
-            StatusEffect::Freeze => &self.freeze,
-            StatusEffect::Chill => &self.chill,
-            StatusEffect::Static => &self.static_effect,
-            StatusEffect::Fear => &self.fear,
-            StatusEffect::Slow => &self.slow,
-        }
+    pub fn get_stats(&self, effect: StatusEffect) -> StatusEffectStats {
+        self.stats.get(&effect).copied().unwrap_or_default()
     }
 
     /// Get conversions for a given status effect
-    pub fn get_conversions(&self, effect: StatusEffect) -> &StatusConversions {
-        match effect {
-            StatusEffect::Poison => &self.poison_conversions,
-            StatusEffect::Bleed => &self.bleed_conversions,
-            StatusEffect::Burn => &self.burn_conversions,
-            StatusEffect::Freeze => &self.freeze_conversions,
-            StatusEffect::Chill => &self.chill_conversions,
-            StatusEffect::Static => &self.static_conversions,
-            StatusEffect::Fear => &self.fear_conversions,
-            StatusEffect::Slow => &self.slow_conversions,
-        }
+    pub fn get_conversions(&self, effect: StatusEffect) -> StatusConversions {
+        self.conversions.get(&effect).cloned().unwrap_or_default()
+    }
+
+    /// Set stats for a given status effect
+    pub fn set_stats(&mut self, effect: StatusEffect, stats: StatusEffectStats) {
+        self.stats.insert(effect, stats);
+    }
+
+    /// Set conversions for a given status effect
+    pub fn set_conversions(&mut self, effect: StatusEffect, conversions: StatusConversions) {
+        self.conversions.insert(effect, conversions);
     }
 
     /// Calculate status damage for a given effect based on hit damages
@@ -296,13 +258,8 @@ impl StatBlock {
             item_rarity_increased: 0.0,
             item_quantity_increased: 0.0,
 
-            // Active effects (unified)
+            // Active effects
             effects: Vec::new(),
-
-            // Legacy active effects
-            active_dots: Vec::new(),
-            active_buffs: Vec::new(),
-            active_status_effects: Vec::new(),
 
             // Weapon stats
             weapon_physical_min: 0.0,

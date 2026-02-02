@@ -5,6 +5,59 @@ use crate::storage::Operation;
 use crate::types::*;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
+use std::fmt;
+
+/// Errors that can occur during item generation
+#[derive(Debug, Clone)]
+pub enum GeneratorError {
+    /// The requested base type ID was not found in the config
+    UnknownBaseType(String),
+    /// The requested unique ID was not found in the config
+    UnknownUnique(String),
+    /// The unique item references a base type that doesn't exist
+    UniqueBaseTypeNotFound {
+        unique_id: String,
+        base_type: String,
+    },
+    /// A currency operation failed during reconstruction
+    Currency(CurrencyError),
+}
+
+impl fmt::Display for GeneratorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GeneratorError::UnknownBaseType(id) => {
+                write!(f, "unknown base type: '{}'", id)
+            }
+            GeneratorError::UnknownUnique(id) => {
+                write!(f, "unknown unique: '{}'", id)
+            }
+            GeneratorError::UniqueBaseTypeNotFound { unique_id, base_type } => {
+                write!(
+                    f,
+                    "unique '{}' references unknown base type '{}'",
+                    unique_id, base_type
+                )
+            }
+            GeneratorError::Currency(e) => write!(f, "currency error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for GeneratorError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            GeneratorError::Currency(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<CurrencyError> for GeneratorError {
+    fn from(err: CurrencyError) -> Self {
+        GeneratorError::Currency(err)
+    }
+}
 
 /// Item generator using seeded RNG for deterministic results
 pub struct Generator {
@@ -26,8 +79,13 @@ impl Generator {
     }
 
     /// Generate a normal item from a base type with the given seed
-    pub fn generate(&self, base_type_id: &str, seed: u64) -> Option<Item> {
-        let base = self.config.base_types.get(base_type_id)?;
+    pub fn generate(&self, base_type_id: &str, seed: u64) -> Result<Item, GeneratorError> {
+        let base = self
+            .config
+            .base_types
+            .get(base_type_id)
+            .ok_or_else(|| GeneratorError::UnknownBaseType(base_type_id.to_string()))?;
+
         let mut rng = Self::make_rng(seed);
         let mut item = Item::new_normal(base, seed);
 
@@ -61,7 +119,7 @@ impl Generator {
             }
         }
 
-        Some(item)
+        Ok(item)
     }
 
     /// Apply a currency to an item by currency ID.
@@ -115,7 +173,12 @@ impl Generator {
     }
 
     /// Reconstruct an item from its base type, seed, and operations
-    pub fn reconstruct(&self, base_type_id: &str, seed: u64, operations: &[Operation]) -> Option<Item> {
+    pub fn reconstruct(
+        &self,
+        base_type_id: &str,
+        seed: u64,
+        operations: &[Operation],
+    ) -> Result<Item, GeneratorError> {
         let mut item = self.generate(base_type_id, seed)?;
 
         // Replay operations (but don't record them again)
@@ -125,6 +188,8 @@ impl Generator {
             match op {
                 Operation::Currency(currency_id) => {
                     if let Some(currency) = self.config.currencies.get(currency_id) {
+                        // During reconstruction, we ignore currency errors since
+                        // the operations were already validated when first applied
                         let _ = apply_currency(self, &mut item, currency, &mut rng);
                     }
                 }
@@ -134,7 +199,7 @@ impl Generator {
         // Set the operations on the reconstructed item
         item.operations = operations.to_vec();
 
-        Some(item)
+        Ok(item)
     }
 
     /// Replay the RNG to the current state based on item's seed and operations
@@ -456,20 +521,17 @@ impl Generator {
         }
     }
 
-    /// Generate a random rare item name
+    /// Generate a random rare item name using configured prefixes and suffixes
     pub fn generate_rare_name(&self, rng: &mut ChaCha8Rng) -> String {
-        const PREFIXES: &[&str] = &[
-            "Doom", "Wrath", "Storm", "Dread", "Soul", "Death", "Blood", "Shadow", "Grim", "Hate",
-            "Plague", "Blight", "Rune", "Spirit", "Mind", "Skull", "Bone", "Venom", "Foe", "Pain",
-        ];
+        let names = &self.config.rare_names;
 
-        const SUFFIXES: &[&str] = &[
-            "Bane", "Edge", "Fang", "Bite", "Roar", "Song", "Call", "Cry", "Grasp", "Touch",
-            "Strike", "Blow", "Mark", "Brand", "Scar", "Ward", "Guard", "Veil", "Shroud", "Mantle",
-        ];
+        // Fall back to simple name if config is empty
+        if names.prefixes.is_empty() || names.suffixes.is_empty() {
+            return "Rare Item".to_string();
+        }
 
-        let prefix = PREFIXES[rng.gen_range(0..PREFIXES.len())];
-        let suffix = SUFFIXES[rng.gen_range(0..SUFFIXES.len())];
+        let prefix = &names.prefixes[rng.gen_range(0..names.prefixes.len())];
+        let suffix = &names.suffixes[rng.gen_range(0..names.suffixes.len())];
 
         format!("{} {}", prefix, suffix)
     }
@@ -495,9 +557,21 @@ impl Generator {
     }
 
     /// Generate a unique item
-    pub fn generate_unique(&self, unique_id: &str, seed: u64) -> Option<Item> {
-        let unique = self.config.uniques.get(unique_id)?;
-        let base = self.config.base_types.get(&unique.base_type)?;
+    pub fn generate_unique(&self, unique_id: &str, seed: u64) -> Result<Item, GeneratorError> {
+        let unique = self
+            .config
+            .uniques
+            .get(unique_id)
+            .ok_or_else(|| GeneratorError::UnknownUnique(unique_id.to_string()))?;
+
+        let base = self
+            .config
+            .base_types
+            .get(&unique.base_type)
+            .ok_or_else(|| GeneratorError::UniqueBaseTypeNotFound {
+                unique_id: unique_id.to_string(),
+                base_type: unique.base_type.clone(),
+            })?;
 
         let mut rng = Self::make_rng(seed);
         let mut item = Item::new_normal(base, seed);
@@ -552,7 +626,7 @@ impl Generator {
             item.prefixes.push(modifier);
         }
 
-        Some(item)
+        Ok(item)
     }
 
     /// Get a currency config by ID

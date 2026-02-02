@@ -1,6 +1,7 @@
 //! Damage resolution - Apply DamagePacket to StatBlock
 
 use super::result::{CombatResult, DamageTaken};
+use crate::config::dot_registry;
 use crate::damage::DamagePacket;
 use crate::defense::{apply_evasion_cap, calculate_armour_reduction, calculate_resistance_mitigation};
 use crate::stat_block::StatBlock;
@@ -159,7 +160,21 @@ pub fn resolve_damage_with_rng(
     (new_defender, result)
 }
 
-/// Create an Effect from a pending status effect
+/// Map StatusEffect enum to config ID
+fn status_to_config_id(status: StatusEffect) -> &'static str {
+    match status {
+        StatusEffect::Poison => "poison",
+        StatusEffect::Bleed => "bleed",
+        StatusEffect::Burn => "burn",
+        StatusEffect::Freeze => "freeze",
+        StatusEffect::Chill => "chill",
+        StatusEffect::Static => "static",
+        StatusEffect::Fear => "fear",
+        StatusEffect::Slow => "slow",
+    }
+}
+
+/// Create an Effect from a pending status effect using config
 fn create_effect_from_status(
     status: StatusEffect,
     duration: f64,
@@ -167,62 +182,37 @@ fn create_effect_from_status(
     dot_dps: f64,
     source_id: &str,
 ) -> Effect {
-    match status {
-        StatusEffect::Poison => {
-            let mut e = Effect::poison(dot_dps, source_id);
-            e.duration_remaining = duration;
-            e.total_duration = duration;
-            e
-        }
-        StatusEffect::Bleed => {
-            let mut e = Effect::bleed(dot_dps, source_id);
-            e.duration_remaining = duration;
-            e.total_duration = duration;
-            e
-        }
-        StatusEffect::Burn => {
-            let mut e = Effect::burn(dot_dps, source_id);
-            e.duration_remaining = duration;
-            e.total_duration = duration;
-            e
-        }
-        StatusEffect::Freeze => {
-            let mut e = Effect::freeze(magnitude, source_id);
-            e.duration_remaining = duration;
-            e.total_duration = duration;
-            e
-        }
-        StatusEffect::Chill => {
-            let mut e = Effect::chill(magnitude, source_id);
-            e.duration_remaining = duration;
-            e.total_duration = duration;
-            e
-        }
-        StatusEffect::Static => {
-            let mut e = Effect::shock(magnitude, source_id);
-            e.duration_remaining = duration;
-            e.total_duration = duration;
-            e
-        }
-        StatusEffect::Fear => {
-            let mut e = Effect::fear(magnitude, source_id);
-            e.duration_remaining = duration;
-            e.total_duration = duration;
-            e
-        }
-        StatusEffect::Slow => {
-            let mut e = Effect::slow(magnitude, source_id);
-            e.duration_remaining = duration;
-            e.total_duration = duration;
-            e
-        }
+    let config_id = status_to_config_id(status);
+    let registry = dot_registry();
+
+    if let Some(config) = registry.get(config_id) {
+        Effect::from_config(config, status, duration, magnitude, dot_dps, source_id)
+    } else {
+        // Fallback if config not found (shouldn't happen with proper initialization)
+        Effect::new_ailment(
+            config_id,
+            config_id,
+            status,
+            duration,
+            magnitude,
+            dot_dps,
+            0.5, // default tick rate
+            crate::types::AilmentStacking::StrongestOnly,
+            source_id,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{ensure_constants_initialized, ensure_dot_registry_initialized};
     use crate::damage::FinalDamage;
+
+    fn setup() {
+        ensure_constants_initialized();
+        ensure_dot_registry_initialized();
+    }
 
     fn make_test_packet(damages: Vec<(DamageType, f64)>) -> DamagePacket {
         let mut packet = DamagePacket::new("attacker".to_string(), "test_skill".to_string());
@@ -234,6 +224,7 @@ mod tests {
 
     #[test]
     fn test_basic_damage() {
+        setup();
         let mut defender = StatBlock::new();
         defender.current_life = 100.0;
 
@@ -248,6 +239,7 @@ mod tests {
 
     #[test]
     fn test_resistance_mitigation() {
+        setup();
         let mut defender = StatBlock::new();
         defender.current_life = 100.0;
         defender.fire_resistance.base = 50.0; // 50% fire resist
@@ -263,6 +255,7 @@ mod tests {
 
     #[test]
     fn test_armour_reduction() {
+        setup();
         let mut defender = StatBlock::new();
         defender.current_life = 200.0;
         defender.armour.base = 1000.0;
@@ -278,6 +271,7 @@ mod tests {
 
     #[test]
     fn test_evasion_cap() {
+        setup();
         let mut defender = StatBlock::new();
         defender.current_life = 10000.0;
         // 1000 evasion vs 2000 accuracy = cap of 1000 (2000 / (1 + 1000/1000) = 1000)
@@ -297,6 +291,7 @@ mod tests {
 
     #[test]
     fn test_es_absorbs_first() {
+        setup();
         let mut defender = StatBlock::new();
         defender.current_life = 100.0;
         defender.current_energy_shield = 50.0;
@@ -314,6 +309,7 @@ mod tests {
 
     #[test]
     fn test_killing_blow() {
+        setup();
         let mut defender = StatBlock::new();
         defender.current_life = 50.0;
 
@@ -328,6 +324,7 @@ mod tests {
 
     #[test]
     fn test_penetration() {
+        setup();
         let mut defender = StatBlock::new();
         defender.current_life = 200.0;
         defender.fire_resistance.base = 75.0;
@@ -344,6 +341,7 @@ mod tests {
 
     #[test]
     fn test_multiple_damage_types() {
+        setup();
         let mut defender = StatBlock::new();
         defender.current_life = 200.0;
         defender.fire_resistance.base = 50.0;

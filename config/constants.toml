@@ -9,6 +9,10 @@ penetration_vs_capped = 0.5  # Penetration effectiveness vs capped resists
 # Formula: reduction = armour / (armour + constant * damage)
 damage_constant = 5.0
 
+[evasion]
+# Formula: cap = accuracy / (1 + evasion / scale_factor)
+scale_factor = 1000.0
+
 [crit]
 base_multiplier = 1.5  # 150% base crit damage
 

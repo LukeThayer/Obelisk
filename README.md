@@ -9,12 +9,9 @@ A Rust game mechanics library for action RPGs. Two crates that work together:
 
 ```rust
 use loot_core::{Config, Generator};
-use stat_core::{
-    StatBlock, DamagePacketGenerator,
-    damage::calculate_damage,
-    combat::resolve_damage,
-    types::EquipmentSlot,
-};
+use stat_core::{StatBlock, EquipmentSlot, default_skills};
+use stat_core::damage::calculate_damage;
+use stat_core::combat::resolve_damage;
 use rand::thread_rng;
 use std::path::Path;
 
@@ -37,8 +34,9 @@ fn main() {
     enemy.current_life = 500.0;
     enemy.armour.base = 200.0;
 
-    // Combat
-    let skill = DamagePacketGenerator::basic_attack();
+    // Combat - load skill from config
+    let skills = default_skills();
+    let skill = skills.get("heavy_strike").unwrap();
     let mut rng = thread_rng();
 
     let packet = calculate_damage(&player, &skill, "player".into(), &mut rng);

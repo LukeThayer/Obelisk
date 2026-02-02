@@ -5,24 +5,23 @@
 //! ```
 
 // Core types
-pub use crate::stat_block::{StatBlock, StatValue};
-pub use crate::types::{ActiveBuff, ActiveStatusEffect, AilmentStacking, Effect, EffectType, EquipmentSlot, SkillTag, StatMod, TickResult};
+pub use crate::stat_block::StatBlock;
+pub use crate::types::{Effect, EquipmentSlot};
 
 // Damage system
-pub use crate::damage::{DamagePacket, DamagePacketGenerator, BaseDamage};
+pub use crate::damage::{BaseDamage, DamagePacket, DamagePacketGenerator};
 
 // Combat
-pub use crate::combat::{CombatResult, DamageTaken};
+pub use crate::combat::CombatResult;
 
 // DoT system
-pub use crate::dot::{DotRegistry, ActiveDoT, DotConfig};
-
-// Sources
-pub use crate::source::{BuffSource, GearSource, StatSource};
+pub use crate::dot::DotRegistry;
 
 // Config
-pub use crate::config::default_skills;
+pub use crate::config::{default_skills, init_constants, init_constants_default};
+
+// Sources (for advanced use)
+pub use crate::source::StatSource;
 
 // Re-exports from loot_core
-pub use loot_core::types::{DamageType, StatusEffect, StatType, ItemClass, Rarity};
-pub use loot_core::Item;
+pub use loot_core::{DamageType, Item, StatType, StatusEffect};

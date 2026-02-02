@@ -5,12 +5,18 @@ pub mod item;
 pub mod storage;
 pub mod types;
 
+// Core API - what most users need
 pub use config::Config;
-pub use currency::CurrencyError;
-pub use generator::Generator;
+pub use generator::{Generator, GeneratorError};
 pub use item::Item;
-pub use storage::{BinaryDecode, BinaryEncode, DecodeError, ItemCollection, Operation};
-pub use types::*;
+
+// Types users commonly need
+pub use types::{
+    AffixScope, AffixType, DamageType, ItemClass, Rarity, StatType, StatusEffect, Tag,
+};
+
+// Storage - for persistence
+pub use storage::{BinaryDecode, BinaryEncode, ItemCollection};
 
 #[cfg(test)]
 mod tests {

@@ -1,8 +1,8 @@
 //! Damage calculation - turning a skill + stats into a DamagePacket
 
 use super::{DamagePacket, DamagePacketGenerator, PendingStatusEffect, SkillStatusConversions};
+use crate::config::dot_registry;
 use crate::stat_block::{StatusEffectData, StatusEffectStats, StatBlock};
-use crate::types::Effect;
 use loot_core::types::{DamageType, StatusEffect};
 use rand::Rng;
 use std::collections::HashMap;
@@ -133,14 +133,15 @@ pub fn calculate_damage(
         );
 
         if status_damage > 0.0 {
+            let registry = dot_registry();
             let stats = attacker.status_effect_stats.get_stats(status);
-            let base_duration = Effect::base_duration_for(status);
+            let base_duration = registry.get_base_duration(status);
             let duration = base_duration * (1.0 + stats.duration_increased);
             let magnitude = 1.0 + stats.magnitude;
 
             // For damaging DoTs, calculate DoT DPS based on status damage
-            let base_dot_percent = Effect::base_dot_percent_for(status);
-            let dot_dps = calculate_status_dot_dps(base_dot_percent, status_damage, stats);
+            let base_dot_percent = registry.get_base_damage_percent(status);
+            let dot_dps = calculate_status_dot_dps(base_dot_percent, status_damage, &stats);
 
             packet.status_effects_to_apply.push(PendingStatusEffect::new_with_dot(
                 status,
@@ -248,9 +249,10 @@ pub fn calculate_skill_dps(
         );
 
         if status_damage > 0.0 {
+            let registry = dot_registry();
             let stats = attacker.status_effect_stats.get_stats(status);
-            let base_dot_percent = Effect::base_dot_percent_for(status);
-            let status_dot_dps = calculate_status_dot_dps(base_dot_percent, status_damage, stats);
+            let base_dot_percent = registry.get_base_damage_percent(status);
+            let status_dot_dps = calculate_status_dot_dps(base_dot_percent, status_damage, &stats);
             // Scale by attack speed (more hits = more DoT applications)
             dot_dps += status_dot_dps * speed;
         }
