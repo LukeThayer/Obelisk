@@ -32,7 +32,10 @@ impl fmt::Display for GeneratorError {
             GeneratorError::UnknownUnique(id) => {
                 write!(f, "unknown unique: '{}'", id)
             }
-            GeneratorError::UniqueBaseTypeNotFound { unique_id, base_type } => {
+            GeneratorError::UniqueBaseTypeNotFound {
+                unique_id,
+                base_type,
+            } => {
                 write!(
                     f,
                     "unique '{}' references unknown base type '{}'",
@@ -103,6 +106,8 @@ impl Generator {
                 tier_min: implicit_cfg.min,
                 tier_max: implicit_cfg.max,
                 tier_max_value: None,
+                granted_skills: vec![],
+                scaling: None,
             });
         }
 
@@ -155,7 +160,7 @@ impl Generator {
         let reqs = &currency.requires;
 
         // Check rarity requirement
-        if !reqs.rarities.is_empty() && !reqs.rarities.contains(&item.rarity) {
+        if !reqs.rarities.is_empty() && !reqs.rarities.iter().any(|r| r == &item.rarity) {
             return false;
         }
 
@@ -165,8 +170,16 @@ impl Generator {
         }
 
         // Check has_affix_slot requirement
-        if reqs.has_affix_slot && !item.can_add_prefix() && !item.can_add_suffix() {
-            return false;
+        if reqs.has_affix_slot {
+            if let Some(rarity) = self.config.rarities.get(&item.rarity) {
+                let can_prefix = item.prefixes.len() < rarity.max_prefixes;
+                let can_suffix = item.suffixes.len() < rarity.max_suffixes;
+                if !can_prefix && !can_suffix {
+                    return false;
+                }
+            } else {
+                return false;
+            }
         }
 
         true
@@ -244,6 +257,8 @@ impl Generator {
                     tier_min: implicit_cfg.min,
                     tier_max: implicit_cfg.max,
                     tier_max_value: None,
+                    granted_skills: vec![],
+                    scaling: None,
                 });
             }
             if let Some(ref def_cfg) = base.defenses {
@@ -432,13 +447,29 @@ impl Generator {
         Some(Modifier::from_affix(affix, tier, value, value_max))
     }
 
-    /// Add affixes to make an item magic (1-2 affixes)
-    pub fn make_magic(&self, item: &mut Item, rng: &mut ChaCha8Rng) {
-        item.rarity = Rarity::Magic;
+    /// Set item rarity and roll affixes based on rarity config
+    pub fn make_rarity(&self, item: &mut Item, rarity_id: &str, rng: &mut ChaCha8Rng) {
+        let Some(rarity) = self.config.rarities.get(rarity_id) else {
+            return;
+        };
+
+        item.rarity = rarity_id.to_string();
         item.prefixes.clear();
         item.suffixes.clear();
 
-        let affix_count = rng.gen_range(1..=2);
+        if rarity.generates_name {
+            item.name = self.generate_rare_name(rng);
+        }
+
+        if rarity.affix_count_max == 0 {
+            return;
+        }
+
+        let affix_count = if rarity.affix_count_min == rarity.affix_count_max {
+            rarity.affix_count_min
+        } else {
+            rng.gen_range(rarity.affix_count_min..=rarity.affix_count_max)
+        };
 
         for _ in 0..affix_count {
             let existing: Vec<String> = item
@@ -448,8 +479,8 @@ impl Generator {
                 .map(|m| m.affix_id.clone())
                 .collect();
 
-            let can_prefix = item.can_add_prefix();
-            let can_suffix = item.can_add_suffix();
+            let can_prefix = item.prefixes.len() < rarity.max_prefixes;
+            let can_suffix = item.suffixes.len() < rarity.max_suffixes;
 
             let affix_type = match (can_prefix, can_suffix) {
                 (true, true) => {
@@ -476,49 +507,14 @@ impl Generator {
         }
     }
 
-    /// Add affixes to make an item rare (4-6 affixes)
+    /// Add affixes to make an item magic
+    pub fn make_magic(&self, item: &mut Item, rng: &mut ChaCha8Rng) {
+        self.make_rarity(item, "magic", rng);
+    }
+
+    /// Add affixes to make an item rare
     pub fn make_rare(&self, item: &mut Item, rng: &mut ChaCha8Rng) {
-        item.rarity = Rarity::Rare;
-        item.prefixes.clear();
-        item.suffixes.clear();
-        item.name = self.generate_rare_name(rng);
-
-        let affix_count = rng.gen_range(4..=6);
-
-        for _ in 0..affix_count {
-            let existing: Vec<String> = item
-                .prefixes
-                .iter()
-                .chain(item.suffixes.iter())
-                .map(|m| m.affix_id.clone())
-                .collect();
-
-            let can_prefix = item.can_add_prefix();
-            let can_suffix = item.can_add_suffix();
-
-            let affix_type = match (can_prefix, can_suffix) {
-                (true, true) => {
-                    if rng.gen_bool(0.5) {
-                        AffixType::Prefix
-                    } else {
-                        AffixType::Suffix
-                    }
-                }
-                (true, false) => AffixType::Prefix,
-                (false, true) => AffixType::Suffix,
-                (false, false) => break,
-            };
-
-            let item_level = item.requirements.level;
-            if let Some(modifier) = self.roll_affix(
-                item.class, &item.tags, affix_type, &existing, item_level, rng,
-            ) {
-                match affix_type {
-                    AffixType::Prefix => item.prefixes.push(modifier),
-                    AffixType::Suffix => item.suffixes.push(modifier),
-                }
-            }
-        }
+        self.make_rarity(item, "rare", rng);
     }
 
     /// Generate a random rare item name using configured prefixes and suffixes
@@ -575,7 +571,7 @@ impl Generator {
 
         let mut rng = Self::make_rng(seed);
         let mut item = Item::new_normal(base, seed);
-        item.rarity = Rarity::Unique;
+        item.rarity = "unique".to_string();
         item.name = unique.name.clone();
 
         // Roll implicit if present
@@ -592,6 +588,8 @@ impl Generator {
                 tier_min: implicit_cfg.min,
                 tier_max: implicit_cfg.max,
                 tier_max_value: None,
+                granted_skills: vec![],
+                scaling: None,
             });
         }
 
@@ -622,6 +620,8 @@ impl Generator {
                 tier_min: mod_cfg.min,
                 tier_max: mod_cfg.max,
                 tier_max_value: None,
+                granted_skills: vec![],
+                scaling: None,
             };
             item.prefixes.push(modifier);
         }

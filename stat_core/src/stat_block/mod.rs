@@ -4,17 +4,18 @@ mod aggregator;
 mod computed;
 mod stat_value;
 
-pub use aggregator::{StatAccumulator, StatusConversions, StatusEffectStats};
+pub use aggregator::{PendingScaledModifier, StatAccumulator, StatusConversions, StatusEffectStats};
 pub use stat_value::StatValue;
 
 use crate::combat::{resolve_damage, CombatResult};
 use crate::damage::{calculate_damage, DamagePacket, DamagePacketGenerator};
 use crate::source::{BuffSource, GearSource, StatSource};
 use crate::types::{AilmentStacking, Effect, EffectType, EquipmentSlot, TickResult};
-use loot_core::types::{DamageType, StatusEffect};
+use loot_core::types::{Attribute, DamageType, StatusEffect};
 use loot_core::Item;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
 /// Complete stat state for an entity (player, monster, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +90,38 @@ pub struct StatBlock {
     pub item_rarity_increased: f64,
     pub item_quantity_increased: f64,
 
+    // === Block ===
+    pub block_chance: StatValue,
+    pub block_amount: StatValue,
+
+    // === Dodge ===
+    pub spell_dodge_chance: f64,
+
+    // === Area of Effect ===
+    pub area_of_effect_increased: f64,
+
+    // === Projectile ===
+    pub additional_projectiles: i32,
+    pub projectile_speed_increased: f64,
+
+    // === Skill Mechanics ===
+    pub skill_duration_increased: f64,
+    pub cooldown_reduction: f64,
+    pub reduced_mana_cost: f64,
+
+    // === Global DoT ===
+    pub dot_multiplier: f64,
+
+    // === Defensive ===
+    pub reduced_damage_taken: f64,
+    pub physical_damage_reduction: f64,
+    pub physical_penetration: StatValue,
+    pub culling_strike: f64,
+
+    // === On-Kill Recovery ===
+    pub life_on_kill: f64,
+    pub mana_on_kill: f64,
+
     // === Active Effects ===
     /// All active effects (buffs, debuffs, ailments)
     #[serde(default)]
@@ -112,6 +145,11 @@ pub struct StatBlock {
     /// Stats for each status effect type (conversions, duration, magnitude, etc.)
     #[serde(default)]
     pub status_effect_stats: StatusEffectData,
+
+    // === Status Buildup Tracking ===
+    /// Accumulated buildup per status effect type (for buildup-based application)
+    #[serde(default)]
+    pub status_buildup: HashMap<StatusEffect, f64>,
 }
 
 /// Holds all status effect related stats (HashMap-based for extensibility)
@@ -121,6 +159,12 @@ pub struct StatusEffectData {
     stats: HashMap<StatusEffect, StatusEffectStats>,
     /// Conversion percentages for each status effect type
     conversions: HashMap<StatusEffect, StatusConversions>,
+    /// Bonus status magnitude on critical strike
+    #[serde(default)]
+    pub status_magnitude_on_crit: f64,
+    /// Increased status damage on critical strike
+    #[serde(default)]
+    pub status_damage_on_crit_increased: f64,
 }
 
 impl StatusEffectData {
@@ -258,6 +302,38 @@ impl StatBlock {
             item_rarity_increased: 0.0,
             item_quantity_increased: 0.0,
 
+            // Block
+            block_chance: StatValue::default(),
+            block_amount: StatValue::default(),
+
+            // Dodge
+            spell_dodge_chance: 0.0,
+
+            // Area of Effect
+            area_of_effect_increased: 0.0,
+
+            // Projectile
+            additional_projectiles: 0,
+            projectile_speed_increased: 0.0,
+
+            // Skill mechanics
+            skill_duration_increased: 0.0,
+            cooldown_reduction: 0.0,
+            reduced_mana_cost: 0.0,
+
+            // Global DoT
+            dot_multiplier: 0.0,
+
+            // Defensive
+            reduced_damage_taken: 0.0,
+            physical_damage_reduction: 0.0,
+            physical_penetration: StatValue::default(),
+            culling_strike: 0.0,
+
+            // On-kill recovery
+            life_on_kill: 0.0,
+            mana_on_kill: 0.0,
+
             // Active effects
             effects: Vec::new(),
 
@@ -277,6 +353,9 @@ impl StatBlock {
 
             // Status effect stats
             status_effect_stats: StatusEffectData::default(),
+
+            // Status buildup tracking
+            status_buildup: HashMap::new(),
         }
     }
 
@@ -362,6 +441,18 @@ impl StatBlock {
         self.max_mana.compute()
     }
 
+    /// Get the computed value of an attribute by enum variant
+    pub fn attribute_value(&self, attribute: Attribute) -> f64 {
+        match attribute {
+            Attribute::Strength => self.strength.compute(),
+            Attribute::Dexterity => self.dexterity.compute(),
+            Attribute::Constitution => self.constitution.compute(),
+            Attribute::Intelligence => self.intelligence.compute(),
+            Attribute::Wisdom => self.wisdom.compute(),
+            Attribute::Charisma => self.charisma.compute(),
+        }
+    }
+
     /// Heal life by amount, capped at max
     pub fn heal(&mut self, amount: f64) {
         let max = self.computed_max_life();
@@ -376,7 +467,8 @@ impl StatBlock {
 
     /// Apply energy shield (from warding spells)
     pub fn apply_energy_shield(&mut self, amount: f64) {
-        self.current_energy_shield = (self.current_energy_shield + amount).min(self.max_energy_shield);
+        self.current_energy_shield =
+            (self.current_energy_shield + amount).min(self.max_energy_shield);
     }
 
     /// Set maximum energy shield capacity
@@ -417,7 +509,11 @@ impl StatBlock {
     /// Apply a buff, automatically rebuilding stats
     pub fn apply_buff(&mut self, buff: BuffSource) {
         // Check if buff already exists and refresh/stack instead
-        if let Some(existing) = self.buff_sources.iter_mut().find(|b| b.buff_id == buff.buff_id) {
+        if let Some(existing) = self
+            .buff_sources
+            .iter_mut()
+            .find(|b| b.buff_id == buff.buff_id)
+        {
             existing.refresh(buff.duration_remaining);
             existing.add_stack();
         } else {
@@ -475,9 +571,16 @@ impl StatBlock {
     /// Add an effect to this entity (mutable)
     pub fn add_effect(&mut self, effect: Effect) {
         // Handle stacking logic for ailments
-        if let EffectType::Ailment { status, stacking, .. } = &effect.effect_type {
+        if let EffectType::Ailment {
+            status, stacking, ..
+        } = &effect.effect_type
+        {
             let existing = self.effects.iter_mut().find(|e| {
-                if let EffectType::Ailment { status: existing_status, .. } = &e.effect_type {
+                if let EffectType::Ailment {
+                    status: existing_status,
+                    ..
+                } = &e.effect_type
+                {
                     existing_status == status
                 } else {
                     false
@@ -491,8 +594,15 @@ impl StatBlock {
                         if effect.dps() >= existing_effect.dps() {
                             existing_effect.refresh(effect.duration_remaining);
                             // Update dps if higher
-                            if let EffectType::Ailment { dot_dps: existing_dps, .. } = &mut existing_effect.effect_type {
-                                if let EffectType::Ailment { dot_dps: new_dps, .. } = &effect.effect_type {
+                            if let EffectType::Ailment {
+                                dot_dps: existing_dps,
+                                ..
+                            } = &mut existing_effect.effect_type
+                            {
+                                if let EffectType::Ailment {
+                                    dot_dps: new_dps, ..
+                                } = &effect.effect_type
+                                {
                                     if *new_dps > *existing_dps {
                                         *existing_dps = *new_dps;
                                     }
@@ -586,7 +696,10 @@ impl StatBlock {
 
     /// Get effects of a specific status type
     pub fn effects_of_status(&self, status: StatusEffect) -> Vec<&Effect> {
-        self.effects.iter().filter(|e| e.status() == Some(status)).collect()
+        self.effects
+            .iter()
+            .filter(|e| e.status() == Some(status))
+            .collect()
     }
 
     /// Get total DPS from all damaging effects
@@ -597,5 +710,78 @@ impl StatBlock {
     /// Clear all effects
     pub fn clear_effects(&mut self) {
         self.effects.clear();
+    }
+}
+
+impl fmt::Display for StatBlock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let max_life = self.computed_max_life();
+        let max_mana = self.computed_max_mana();
+
+        // Header
+        writeln!(f, "══ {} ══", self.id)?;
+
+        // Resources
+        write!(
+            f,
+            "Life: {:.0}/{:.0} ({:.0}%)  Mana: {:.0}/{:.0} ({:.0}%)",
+            self.current_life,
+            max_life,
+            self.life_percent(),
+            self.current_mana,
+            max_mana,
+            self.mana_percent(),
+        )?;
+        if self.max_energy_shield > 0.0 {
+            writeln!(f, "  ES: {:.0}/{:.0}", self.current_energy_shield, self.max_energy_shield)?;
+        } else {
+            writeln!(f, "  ES: 0")?;
+        }
+
+        // Attributes
+        writeln!(f)?;
+        writeln!(f, "Attributes")?;
+        writeln!(
+            f,
+            "  STR {:.0}  DEX {:.0}  INT {:.0}  CON {:.0}  WIS {:.0}  CHA {:.0}",
+            self.strength.compute(),
+            self.dexterity.compute(),
+            self.intelligence.compute(),
+            self.constitution.compute(),
+            self.wisdom.compute(),
+            self.charisma.compute(),
+        )?;
+
+        // Defenses
+        writeln!(f)?;
+        writeln!(f, "Defenses")?;
+        writeln!(
+            f,
+            "  Armour: {:.0}  Evasion: {:.0}",
+            self.armour.compute(),
+            self.evasion.compute(),
+        )?;
+        writeln!(
+            f,
+            "  Fire Res: {:.0}%  Cold Res: {:.0}%  Lightning Res: {:.0}%  Chaos Res: {:.0}%",
+            self.fire_resistance.compute(),
+            self.cold_resistance.compute(),
+            self.lightning_resistance.compute(),
+            self.chaos_resistance.compute(),
+        )?;
+
+        // Offense
+        writeln!(f)?;
+        writeln!(f, "Offense")?;
+        writeln!(
+            f,
+            "  Attack Speed: {:.2}  Crit: {:.1}% ({:.0}% multi)",
+            self.computed_attack_speed(),
+            self.computed_attack_crit_chance(),
+            self.computed_crit_multiplier() * 100.0,
+        )?;
+        write!(f, "  Weapon DPS: {:.1}", self.weapon_dps())?;
+
+        Ok(())
     }
 }

@@ -145,8 +145,13 @@ impl BuffPresets {
 
     /// Create an attack speed buff
     pub fn haste(duration: f64) -> BuffSource {
-        BuffSource::new("buff_haste".to_string(), "Haste".to_string(), duration, false)
-            .with_modifier(StatType::IncreasedAttackSpeed, 20.0, false)
+        BuffSource::new(
+            "buff_haste".to_string(),
+            "Haste".to_string(),
+            duration,
+            false,
+        )
+        .with_modifier(StatType::IncreasedAttackSpeed, 20.0, false)
     }
 
     /// Create a generic debuff (reduces damage)

@@ -333,3 +333,150 @@ weight = 600
 min = 8
 max = 14
 min_ilvl = 1
+
+# Block & Dodge
+
+[[affixes]]
+id = "block_chance"
+name = "Warding"
+type = "prefix"
+stat = "block_chance"
+scope = "global"
+tags = ["block", "defense"]
+allowed_classes = ["shield"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 6
+max = 8
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 3
+max = 5
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 1
+max = 2
+min_ilvl = 1
+
+[[affixes]]
+id = "block_amount"
+name = "Bulwark"
+type = "prefix"
+stat = "block_amount"
+scope = "global"
+tags = ["block", "defense"]
+allowed_classes = ["shield"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 40
+max = 60
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 20
+max = 39
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 8
+max = 19
+min_ilvl = 1
+
+[[affixes]]
+id = "spell_dodge_chance"
+name = "of Spell Evasion"
+type = "suffix"
+stat = "spell_dodge_chance"
+scope = "global"
+tags = ["dodge", "caster", "defense"]
+allowed_classes = ["boots", "body_armour"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 5
+max = 8
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 3
+max = 4
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 500
+min = 1
+max = 2
+min_ilvl = 1
+
+# Damage Reduction
+
+[[affixes]]
+id = "physical_damage_reduction"
+name = "of Fortitude"
+type = "suffix"
+stat = "physical_damage_reduction"
+scope = "global"
+tags = ["physical", "defense"]
+allowed_classes = ["shield", "body_armour"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 60
+min = 4
+max = 6
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 150
+min = 2
+max = 3
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 400
+min = 1
+max = 1
+min_ilvl = 1
+
+[[affixes]]
+id = "reduced_damage_taken"
+name = "Indomitable"
+type = "prefix"
+stat = "reduced_damage_taken"
+scope = "global"
+tags = ["defense"]
+allowed_classes = ["body_armour"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 30
+min = 3
+max = 5
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 80
+min = 1
+max = 2
+min_ilvl = 25

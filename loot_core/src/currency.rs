@@ -21,10 +21,12 @@ pub fn apply_currency(
     let effects = &currency.effects;
 
     // 1. Set rarity (if specified)
-    if let Some(new_rarity) = effects.set_rarity {
-        item.rarity = new_rarity;
-        if new_rarity == Rarity::Rare && item.name == item.base_name {
-            item.name = generator.generate_rare_name(rng);
+    if let Some(ref new_rarity_id) = effects.set_rarity {
+        item.rarity = new_rarity_id.clone();
+        if let Some(rarity_cfg) = generator.config().get_rarity(new_rarity_id) {
+            if rarity_cfg.generates_name && item.name == item.base_name {
+                item.name = generator.generate_rare_name(rng);
+            }
         }
     }
 
@@ -32,9 +34,11 @@ pub fn apply_currency(
     if effects.clear_affixes {
         item.prefixes.clear();
         item.suffixes.clear();
-        // Reset name to base name if becoming normal
-        if item.rarity == Rarity::Normal {
-            item.name = item.base_name.clone();
+        // Reset name to base name if rarity doesn't generate names
+        if let Some(rarity_cfg) = generator.config().get_rarity(&item.rarity) {
+            if !rarity_cfg.generates_name {
+                item.name = item.base_name.clone();
+            }
         }
     }
 
@@ -90,10 +94,10 @@ fn check_requirements(
     let effects = &currency.effects;
 
     // Check rarity requirement
-    if !reqs.rarities.is_empty() && !reqs.rarities.contains(&item.rarity) {
+    if !reqs.rarities.is_empty() && !reqs.rarities.iter().any(|r| r == &item.rarity) {
         return Err(CurrencyError::InvalidRarity {
             expected: reqs.rarities.clone(),
-            got: item.rarity,
+            got: item.rarity.clone(),
         });
     }
 
@@ -105,35 +109,37 @@ fn check_requirements(
     // Check has_affix_slot requirement
     // If the currency will change rarity, check against target rarity's limits
     if reqs.has_affix_slot {
-        let target_rarity = effects.set_rarity.unwrap_or(item.rarity);
-        let prefix_count = if effects.clear_affixes {
-            0
-        } else {
-            item.prefixes.len()
-        };
-        let suffix_count = if effects.clear_affixes {
-            0
-        } else {
-            item.suffixes.len()
-        };
+        let target_rarity_id = effects.set_rarity.as_deref().unwrap_or(&item.rarity);
+        if let Some(target_rarity) = generator.config().get_rarity(target_rarity_id) {
+            let prefix_count = if effects.clear_affixes {
+                0
+            } else {
+                item.prefixes.len()
+            };
+            let suffix_count = if effects.clear_affixes {
+                0
+            } else {
+                item.suffixes.len()
+            };
 
-        let can_add_prefix = prefix_count < target_rarity.max_prefixes();
-        let can_add_suffix = suffix_count < target_rarity.max_suffixes();
+            let can_add_prefix = prefix_count < target_rarity.max_prefixes;
+            let can_add_suffix = suffix_count < target_rarity.max_suffixes;
 
-        if !can_add_prefix && !can_add_suffix {
-            return Err(CurrencyError::NoAffixSlots);
+            if !can_add_prefix && !can_add_suffix {
+                return Err(CurrencyError::NoAffixSlots);
+            }
         }
     }
 
     // Check if specific affixes can actually be added (validate upfront before any changes)
     // This prevents imbue currencies from upgrading rarity when the affix can't be added
     if !effects.add_specific_affix.is_empty() {
-        let target_rarity = effects.set_rarity.unwrap_or(item.rarity);
+        let target_rarity_id = effects.set_rarity.as_deref().unwrap_or(&item.rarity);
         if !can_add_any_specific_affix(
             generator,
             item,
             &effects.add_specific_affix,
-            target_rarity,
+            target_rarity_id,
             effects.clear_affixes,
         ) {
             return Err(CurrencyError::NoValidAffixes);
@@ -155,9 +161,13 @@ fn can_add_any_specific_affix(
     generator: &Generator,
     item: &Item,
     candidates: &[SpecificAffix],
-    target_rarity: Rarity,
+    target_rarity_id: &str,
     will_clear_affixes: bool,
 ) -> bool {
+    let Some(target_rarity) = generator.config().get_rarity(target_rarity_id) else {
+        return false;
+    };
+
     // Get existing affix IDs (will be empty if clearing)
     let existing: Vec<&str> = if will_clear_affixes {
         Vec::new()
@@ -180,8 +190,8 @@ fn can_add_any_specific_affix(
     } else {
         item.suffixes.len()
     };
-    let can_add_prefix = prefix_count < target_rarity.max_prefixes();
-    let can_add_suffix = suffix_count < target_rarity.max_suffixes();
+    let can_add_prefix = prefix_count < target_rarity.max_prefixes;
+    let can_add_suffix = suffix_count < target_rarity.max_suffixes;
 
     // Check if any candidate can be added
     candidates.iter().any(|c| {
@@ -210,7 +220,7 @@ fn can_add_any_specific_affix(
 
 #[derive(Debug, Clone)]
 pub enum CurrencyError {
-    InvalidRarity { expected: Vec<Rarity>, got: Rarity },
+    InvalidRarity { expected: Vec<String>, got: String },
     NoAffixSlots,
     NoAffixesToRemove,
     NoValidAffixes,
@@ -268,8 +278,15 @@ fn add_random_affix(
         .map(|m| m.affix_id.clone())
         .collect();
 
-    let can_prefix = item.can_add_prefix();
-    let can_suffix = item.can_add_suffix();
+    let (can_prefix, can_suffix) = if let Some(rarity) = generator.config().get_rarity(&item.rarity)
+    {
+        (
+            item.prefixes.len() < rarity.max_prefixes,
+            item.suffixes.len() < rarity.max_suffixes,
+        )
+    } else {
+        (false, false)
+    };
 
     if !can_prefix && !can_suffix {
         return false;
@@ -360,9 +377,13 @@ fn add_specific_affix_from_set(
             }
 
             // Check if there's a slot
-            match affix.affix_type {
-                AffixType::Prefix => item.can_add_prefix(),
-                AffixType::Suffix => item.can_add_suffix(),
+            if let Some(rarity) = generator.config().get_rarity(&item.rarity) {
+                match affix.affix_type {
+                    AffixType::Prefix => item.prefixes.len() < rarity.max_prefixes,
+                    AffixType::Suffix => item.suffixes.len() < rarity.max_suffixes,
+                }
+            } else {
+                false
             }
         })
         .collect();
@@ -471,6 +492,14 @@ fn add_affix_by_id(
         tier_min: selected_tier.min,
         tier_max: selected_tier.max,
         tier_max_value: selected_tier.max_value.map(|r| (r.min, r.max)),
+        granted_skills: affix.granted_skills.clone(),
+        scaling: affix.scaling.as_ref().map(|s| {
+            crate::item::ModifierScaling {
+                attribute: s.attribute,
+                per: s.per,
+                max_stacks: s.max_stacks,
+            }
+        }),
     };
 
     // Add to appropriate list
@@ -615,7 +644,7 @@ fn try_unique_transformation(
     }
 
     // Transform the item into the unique
-    item.rarity = Rarity::Unique;
+    item.rarity = "unique".to_string();
     item.name = unique.name.clone();
     item.prefixes.clear();
     item.suffixes.clear();
@@ -697,6 +726,8 @@ fn try_unique_transformation(
             tier_min: mod_cfg.min,
             tier_max: mod_cfg.max,
             tier_max_value: None,
+            granted_skills: vec![],
+            scaling: None,
         };
         item.prefixes.push(modifier);
     }

@@ -24,6 +24,10 @@ stack_effectiveness = 1.0
 [dot_types.stacking]
 type = "unlimited"
 
+[dot_types.application]
+type = "buildup"
+threshold = 100.0
+
 [[dot_types]]
 id = "bleed"
 name = "Bleed"

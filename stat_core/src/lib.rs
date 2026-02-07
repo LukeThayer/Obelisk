@@ -41,14 +41,14 @@ pub mod stat_block;
 pub mod types;
 
 // Core API - what most users need
-pub use stat_block::StatBlock;
-pub use damage::{BaseDamage, DamagePacket, DamagePacketGenerator};
 pub use combat::CombatResult;
+pub use damage::{BaseDamage, DamagePacket, DamagePacketGenerator};
+pub use stat_block::StatBlock;
 pub use types::{Effect, EquipmentSlot};
 
 // Configuration
 pub use config::{default_skills, init_constants, init_constants_default};
-pub use dot::DotRegistry;
+pub use dot::{DotRegistry, StatusApplication};
 
 // Advanced: Custom stat sources
 pub use source::StatSource;

@@ -29,12 +29,27 @@ impl StatBlock {
     /// Get the penetration value for a damage type
     pub fn penetration(&self, damage_type: DamageType) -> f64 {
         match damage_type {
-            DamageType::Physical => 0.0, // Physical doesn't have penetration
+            DamageType::Physical => self.physical_penetration.compute(),
             DamageType::Fire => self.fire_penetration.compute(),
             DamageType::Cold => self.cold_penetration.compute(),
             DamageType::Lightning => self.lightning_penetration.compute(),
             DamageType::Chaos => self.chaos_penetration.compute(),
         }
+    }
+
+    /// Get computed block chance (capped at 75%)
+    pub fn computed_block_chance(&self) -> f64 {
+        self.block_chance.compute().clamp(0.0, 75.0)
+    }
+
+    /// Get computed block amount
+    pub fn computed_block_amount(&self) -> f64 {
+        self.block_amount.compute()
+    }
+
+    /// Get computed spell dodge chance (capped at 75%)
+    pub fn computed_spell_dodge_chance(&self) -> f64 {
+        self.spell_dodge_chance.clamp(0.0, 75.0)
     }
 
     /// Get computed attack speed
@@ -51,7 +66,8 @@ impl StatBlock {
     pub fn computed_attack_crit_chance(&self) -> f64 {
         // Base crit from weapon + modifiers
         let base_crit = self.weapon_crit_chance + self.critical_chance.flat;
-        base_crit * self.critical_chance.total_increased_multiplier()
+        base_crit
+            * self.critical_chance.total_increased_multiplier()
             * self.critical_chance.total_more_multiplier()
     }
 

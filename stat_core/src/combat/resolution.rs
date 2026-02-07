@@ -3,7 +3,9 @@
 use super::result::{CombatResult, DamageTaken};
 use crate::config::dot_registry;
 use crate::damage::DamagePacket;
-use crate::defense::{apply_evasion_cap, calculate_armour_reduction, calculate_resistance_mitigation};
+use crate::defense::{
+    apply_evasion_cap, calculate_armour_reduction, calculate_resistance_mitigation,
+};
 use crate::stat_block::StatBlock;
 use crate::types::Effect;
 use loot_core::types::{DamageType, StatusEffect};
@@ -18,10 +20,7 @@ use rand::Rng;
 /// 3. Applies evasion one-shot protection
 /// 4. Applies damage to ES then life
 /// 5. Processes status effect applications (chance = status_damage / max_health)
-pub fn resolve_damage(
-    defender: &StatBlock,
-    packet: &DamagePacket,
-) -> (StatBlock, CombatResult) {
+pub fn resolve_damage(defender: &StatBlock, packet: &DamagePacket) -> (StatBlock, CombatResult) {
     let mut rng = rand::thread_rng();
     resolve_damage_with_rng(defender, packet, &mut rng)
 }
@@ -38,6 +37,17 @@ pub fn resolve_damage_with_rng(
     // Store initial state
     result.es_before = new_defender.current_energy_shield;
     result.life_before = new_defender.current_life;
+
+    // Step 0: Spell dodge check
+    if packet.is_spell {
+        let dodge_chance = new_defender.computed_spell_dodge_chance() / 100.0;
+        if dodge_chance > 0.0 && rng.gen::<f64>() < dodge_chance {
+            result.was_dodged = true;
+            result.es_after = new_defender.current_energy_shield;
+            result.life_after = new_defender.current_life;
+            return (new_defender, result);
+        }
+    }
 
     // Step 1: Calculate mitigated damage for each type
     for final_damage in &packet.damages {
@@ -83,7 +93,24 @@ pub fn resolve_damage_with_rng(
         }
     }
 
-    // Recalculate total after armour
+    // Step 2b: Apply physical damage reduction (% reduction, separate from armour)
+    let phys_dr = new_defender.physical_damage_reduction.clamp(0.0, 90.0) / 100.0;
+    if phys_dr > 0.0 {
+        if let Some(phys) = result
+            .damage_taken
+            .iter_mut()
+            .find(|d| d.damage_type == DamageType::Physical)
+        {
+            if phys.final_amount > 0.0 {
+                let reduced = phys.final_amount * phys_dr;
+                result.damage_reduced_by_physical_dr = reduced;
+                phys.mitigated_amount += reduced;
+                phys.final_amount -= reduced;
+            }
+        }
+    }
+
+    // Recalculate total after armour + physical DR
     let total_before_evasion: f64 = result.damage_taken.iter().map(|d| d.final_amount).sum();
 
     // Step 3: Apply evasion one-shot protection (accuracy vs evasion)
@@ -104,6 +131,38 @@ pub fn resolve_damage_with_rng(
                 damage.final_amount *= ratio;
             }
         }
+    }
+
+    // Step 3b: Block check
+    let block_chance = new_defender.computed_block_chance() / 100.0;
+    if block_chance > 0.0 && rng.gen::<f64>() < block_chance {
+        let block_amount = new_defender.computed_block_amount();
+        result.was_blocked = true;
+        result.damage_blocked = block_amount;
+
+        // Subtract block amount proportionally from each damage type
+        let total_pre_block: f64 = result.damage_taken.iter().map(|d| d.final_amount).sum();
+        if total_pre_block > 0.0 && block_amount > 0.0 {
+            let block_ratio = (block_amount / total_pre_block).min(1.0);
+            for damage in &mut result.damage_taken {
+                let blocked = damage.final_amount * block_ratio;
+                damage.mitigated_amount += blocked;
+                damage.final_amount -= blocked;
+            }
+        }
+    }
+
+    // Step 3c: Reduced damage taken (final global multiplier)
+    let dr = new_defender.reduced_damage_taken.clamp(0.0, 90.0) / 100.0;
+    if dr > 0.0 {
+        let total_pre_dr: f64 = result.damage_taken.iter().map(|d| d.final_amount).sum();
+        for damage in &mut result.damage_taken {
+            let reduced = damage.final_amount * dr;
+            damage.mitigated_amount += reduced;
+            damage.final_amount -= reduced;
+        }
+        let total_post_dr: f64 = result.damage_taken.iter().map(|d| d.final_amount).sum();
+        result.damage_reduced_by_dr = total_pre_dr - total_post_dr;
     }
 
     // Calculate final total damage
@@ -131,17 +190,56 @@ pub fn resolve_damage_with_rng(
         new_defender.current_life = 0.0;
     }
 
+    // Step 4b: Culling strike — if defender is below threshold, kill them
+    if !result.is_killing_blow && packet.culling_strike > 0.0 {
+        let life_percent = new_defender.life_percent();
+        if life_percent > 0.0 && life_percent <= packet.culling_strike {
+            result.is_killing_blow = true;
+            result.culled = true;
+            new_defender.current_life = 0.0;
+        }
+    }
+
+    // Step 4c: Life/Mana on kill
+    if result.is_killing_blow {
+        result.life_gained_on_kill = packet.life_on_kill;
+        result.mana_gained_on_kill = packet.mana_on_kill;
+    }
+
     // Store final state
     result.es_after = new_defender.current_energy_shield;
     result.life_after = new_defender.current_life;
 
     // Step 5: Process status effect applications using unified Effect system
-    // Chance to apply = status_damage / target_max_health
     let target_max_health = new_defender.computed_max_life();
     for pending_status in &packet.status_effects_to_apply {
-        let apply_chance = pending_status.calculate_apply_chance(target_max_health);
+        let config_id = status_to_config_id(pending_status.effect_type);
+        let registry = dot_registry();
+        let config = registry.get(config_id);
 
-        if rng.gen::<f64>() < apply_chance {
+        let should_apply = match config.map(|c| &c.application) {
+            Some(crate::dot::StatusApplication::Buildup { threshold }) => {
+                // Buildup-based: accumulate status damage until threshold
+                let buildup = new_defender
+                    .status_buildup
+                    .entry(pending_status.effect_type)
+                    .or_insert(0.0);
+                *buildup += pending_status.status_damage;
+                if *buildup >= *threshold {
+                    *buildup -= threshold;
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => {
+                // Default: chance-based (status_damage / target_max_health)
+                let apply_chance = pending_status.calculate_apply_chance(target_max_health);
+                rng.gen::<f64>() < apply_chance
+            }
+        };
+
+        if should_apply {
             // Create unified Effect based on status type
             let effect = create_effect_from_status(
                 pending_status.effect_type,
@@ -348,8 +446,8 @@ mod tests {
         defender.cold_resistance.base = 25.0;
 
         let packet = make_test_packet(vec![
-            (DamageType::Fire, 100.0),   // 50 after resist
-            (DamageType::Cold, 100.0),   // 75 after resist
+            (DamageType::Fire, 100.0), // 50 after resist
+            (DamageType::Cold, 100.0), // 75 after resist
         ]);
 
         let (_, result) = resolve_damage(&defender, &packet);

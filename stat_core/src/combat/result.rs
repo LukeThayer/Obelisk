@@ -3,6 +3,7 @@
 use crate::types::Effect;
 use loot_core::types::DamageType;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Result of applying a DamagePacket to a StatBlock
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +38,28 @@ pub struct CombatResult {
     /// Life after damage
     pub life_after: f64,
 
+    // === Block/Dodge ===
+    /// Whether the hit was spell dodged
+    pub was_dodged: bool,
+    /// Whether the hit was blocked
+    pub was_blocked: bool,
+    /// Damage absorbed by block
+    pub damage_blocked: f64,
+
+    // === Additional Mitigation ===
+    /// Damage reduced by physical damage reduction (%)
+    pub damage_reduced_by_physical_dr: f64,
+    /// Damage reduced by generic reduced_damage_taken
+    pub damage_reduced_by_dr: f64,
+
+    // === On-Kill ===
+    /// Life gained from life_on_kill
+    pub life_gained_on_kill: f64,
+    /// Mana gained from mana_on_kill
+    pub mana_gained_on_kill: f64,
+    /// Whether culling strike triggered the kill
+    pub culled: bool,
+
     // === Flags ===
     /// Whether this was a killing blow
     pub is_killing_blow: bool,
@@ -58,6 +81,14 @@ impl Default for CombatResult {
             es_after: 0.0,
             life_before: 0.0,
             life_after: 0.0,
+            was_dodged: false,
+            was_blocked: false,
+            damage_blocked: 0.0,
+            damage_reduced_by_physical_dr: 0.0,
+            damage_reduced_by_dr: 0.0,
+            life_gained_on_kill: 0.0,
+            mana_gained_on_kill: 0.0,
+            culled: false,
             is_killing_blow: false,
             triggered_evasion_cap: false,
         }
@@ -82,7 +113,9 @@ impl CombatResult {
 
     /// Get damage taken for a specific type
     pub fn damage_of_type(&self, damage_type: DamageType) -> Option<&DamageTaken> {
-        self.damage_taken.iter().find(|d| d.damage_type == damage_type)
+        self.damage_taken
+            .iter()
+            .find(|d| d.damage_type == damage_type)
     }
 
     /// Get a summary string
@@ -98,15 +131,44 @@ impl CombatResult {
         }
 
         if self.damage_reduced_by_armour > 0.0 {
-            parts.push(format!("{:.0} reduced by armour", self.damage_reduced_by_armour));
+            parts.push(format!(
+                "{:.0} reduced by armour",
+                self.damage_reduced_by_armour
+            ));
         }
 
         if self.damage_reduced_by_resists > 0.0 {
-            parts.push(format!("{:.0} reduced by resists", self.damage_reduced_by_resists));
+            parts.push(format!(
+                "{:.0} reduced by resists",
+                self.damage_reduced_by_resists
+            ));
         }
 
         if self.damage_prevented_by_evasion > 0.0 {
             parts.push(format!("{:.0} evaded", self.damage_prevented_by_evasion));
+        }
+
+        if self.was_dodged {
+            parts.push("DODGED".to_string());
+        }
+
+        if self.was_blocked {
+            parts.push(format!("{:.0} blocked", self.damage_blocked));
+        }
+
+        if self.damage_reduced_by_physical_dr > 0.0 {
+            parts.push(format!(
+                "{:.0} phys DR",
+                self.damage_reduced_by_physical_dr
+            ));
+        }
+
+        if self.damage_reduced_by_dr > 0.0 {
+            parts.push(format!("{:.0} DR", self.damage_reduced_by_dr));
+        }
+
+        if self.culled {
+            parts.push("CULLED".to_string());
         }
 
         if self.is_killing_blow {
@@ -164,6 +226,73 @@ impl DamageTaken {
     }
 }
 
+impl fmt::Display for DamageTaken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: {:.0} raw -> {:.0} final ({:.0}% mitigated)",
+            self.damage_type,
+            self.raw_amount,
+            self.final_amount,
+            self.mitigation_percent(),
+        )
+    }
+}
+
+impl fmt::Display for CombatResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "══ Combat Result ══")?;
+        writeln!(f, "Total: {:.0} damage", self.total_damage)?;
+
+        // Per-type breakdown
+        if !self.damage_taken.is_empty() {
+            writeln!(f)?;
+            for dt in &self.damage_taken {
+                writeln!(f, "  {}", dt)?;
+            }
+        }
+
+        // Mitigation summary
+        let mut mitigations = Vec::new();
+        if self.damage_reduced_by_armour > 0.0 {
+            mitigations.push(format!("{:.0} armour", self.damage_reduced_by_armour));
+        }
+        if self.damage_reduced_by_resists > 0.0 {
+            mitigations.push(format!("{:.0} resists", self.damage_reduced_by_resists));
+        }
+        if self.damage_blocked_by_es > 0.0 {
+            mitigations.push(format!("{:.0} ES", self.damage_blocked_by_es));
+        }
+        if self.damage_prevented_by_evasion > 0.0 {
+            mitigations.push(format!("{:.0} evasion", self.damage_prevented_by_evasion));
+        }
+        if self.damage_blocked > 0.0 {
+            mitigations.push(format!("{:.0} blocked", self.damage_blocked));
+        }
+        if self.damage_reduced_by_physical_dr > 0.0 {
+            mitigations.push(format!("{:.0} phys DR", self.damage_reduced_by_physical_dr));
+        }
+        if self.damage_reduced_by_dr > 0.0 {
+            mitigations.push(format!("{:.0} DR", self.damage_reduced_by_dr));
+        }
+        if !mitigations.is_empty() {
+            writeln!(f)?;
+            writeln!(f, "Mitigation: {}", mitigations.join(", "))?;
+        }
+
+        // Life change
+        if self.life_before > 0.0 || self.life_after > 0.0 {
+            write!(f, "Life: {:.0} -> {:.0}", self.life_before, self.life_after)?;
+        }
+
+        if self.is_killing_blow {
+            write!(f, "\nKILLING BLOW")?;
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,18 +300,12 @@ mod tests {
     #[test]
     fn test_combat_result_totals() {
         let mut result = CombatResult::new();
-        result.damage_taken.push(DamageTaken::new(
-            DamageType::Physical,
-            100.0,
-            30.0,
-            70.0,
-        ));
-        result.damage_taken.push(DamageTaken::new(
-            DamageType::Fire,
-            50.0,
-            25.0,
-            25.0,
-        ));
+        result
+            .damage_taken
+            .push(DamageTaken::new(DamageType::Physical, 100.0, 30.0, 70.0));
+        result
+            .damage_taken
+            .push(DamageTaken::new(DamageType::Fire, 50.0, 25.0, 25.0));
         result.total_damage = 95.0;
 
         assert!((result.total_raw_damage() - 150.0).abs() < f64::EPSILON);

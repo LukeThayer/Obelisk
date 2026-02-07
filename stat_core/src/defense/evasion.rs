@@ -174,8 +174,8 @@ mod tests {
     fn test_triggered_cap() {
         setup();
         // 2000 accuracy vs 1000 evasion = 1000 cap
-        assert!(triggered_evasion_cap(2000.0, 1000.0, 1200.0));  // above cap
-        assert!(!triggered_evasion_cap(2000.0, 1000.0, 800.0));  // below cap
+        assert!(triggered_evasion_cap(2000.0, 1000.0, 1200.0)); // above cap
+        assert!(!triggered_evasion_cap(2000.0, 1000.0, 800.0)); // below cap
         assert!(!triggered_evasion_cap(2000.0, 1000.0, 1000.0)); // at cap
     }
 
@@ -195,7 +195,7 @@ mod tests {
     fn test_higher_accuracy_counters_evasion() {
         setup();
         // More accuracy = higher cap (less protection for defender)
-        let low_acc_cap = calculate_damage_cap(1000.0, 1000.0);  // 500
+        let low_acc_cap = calculate_damage_cap(1000.0, 1000.0); // 500
         let high_acc_cap = calculate_damage_cap(4000.0, 1000.0); // 2000
 
         assert!(high_acc_cap > low_acc_cap);
@@ -205,7 +205,7 @@ mod tests {
     fn test_higher_evasion_is_better() {
         setup();
         // More evasion = lower cap (more protection for defender)
-        let low_eva_cap = calculate_damage_cap(2000.0, 500.0);   // 1333
+        let low_eva_cap = calculate_damage_cap(2000.0, 500.0); // 1333
         let high_eva_cap = calculate_damage_cap(2000.0, 2000.0); // 667
 
         assert!(high_eva_cap < low_eva_cap);

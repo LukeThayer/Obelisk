@@ -3,6 +3,7 @@
 use crate::dot::{DotConfig, DotStacking};
 use loot_core::types::StatusEffect;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 // ============================================================================
 // Unified Effect System
@@ -117,7 +118,10 @@ impl Effect {
         Effect {
             id: id.into(),
             name: name.into(),
-            effect_type: EffectType::StatModifier { modifiers, is_debuff },
+            effect_type: EffectType::StatModifier {
+                modifiers,
+                is_debuff,
+            },
             duration_remaining: duration,
             total_duration: duration,
             stacks: 1,
@@ -173,9 +177,12 @@ impl Effect {
         let stacking = match &config.stacking {
             DotStacking::StrongestOnly => AilmentStacking::StrongestOnly,
             DotStacking::Unlimited => AilmentStacking::Unlimited,
-            DotStacking::Limited { stack_effectiveness, .. } => {
-                AilmentStacking::Limited { stack_effectiveness: *stack_effectiveness }
-            }
+            DotStacking::Limited {
+                stack_effectiveness,
+                ..
+            } => AilmentStacking::Limited {
+                stack_effectiveness: *stack_effectiveness,
+            },
         };
 
         let mut effect = Self::new_ailment(
@@ -227,9 +234,11 @@ impl Effect {
     /// Get DPS for this effect (0 if not a damaging ailment)
     pub fn dps(&self) -> f64 {
         match &self.effect_type {
-            EffectType::Ailment { dot_dps, effectiveness, .. } => {
-                dot_dps * self.stacks as f64 * effectiveness
-            }
+            EffectType::Ailment {
+                dot_dps,
+                effectiveness,
+                ..
+            } => dot_dps * self.stacks as f64 * effectiveness,
             _ => 0.0,
         }
     }
@@ -237,9 +246,11 @@ impl Effect {
     /// Calculate damage for a tick (returns 0 if not a damaging ailment)
     pub fn tick_damage(&self, delta: f64) -> f64 {
         match &self.effect_type {
-            EffectType::Ailment { dot_dps, effectiveness, .. } => {
-                dot_dps * delta * self.stacks as f64 * effectiveness
-            }
+            EffectType::Ailment {
+                dot_dps,
+                effectiveness,
+                ..
+            } => dot_dps * delta * self.stacks as f64 * effectiveness,
             _ => 0.0,
         }
     }
@@ -271,7 +282,13 @@ impl Effect {
         let mut damage_dealt = 0.0;
 
         match &mut self.effect_type {
-            EffectType::Ailment { time_until_tick, tick_rate, dot_dps, effectiveness, .. } => {
+            EffectType::Ailment {
+                time_until_tick,
+                tick_rate,
+                dot_dps,
+                effectiveness,
+                ..
+            } => {
                 if *dot_dps > 0.0 {
                     *time_until_tick -= delta;
                     while *time_until_tick <= 0.0 && self.duration_remaining > 0.0 {
@@ -344,6 +361,25 @@ pub enum SkillTag {
     Aoe,
 }
 
+impl fmt::Display for SkillTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SkillTag::Attack => write!(f, "Attack"),
+            SkillTag::Spell => write!(f, "Spell"),
+            SkillTag::Physical => write!(f, "Physical"),
+            SkillTag::Fire => write!(f, "Fire"),
+            SkillTag::Cold => write!(f, "Cold"),
+            SkillTag::Lightning => write!(f, "Lightning"),
+            SkillTag::Chaos => write!(f, "Chaos"),
+            SkillTag::Elemental => write!(f, "Elemental"),
+            SkillTag::Melee => write!(f, "Melee"),
+            SkillTag::Ranged => write!(f, "Ranged"),
+            SkillTag::Projectile => write!(f, "Projectile"),
+            SkillTag::Aoe => write!(f, "AoE"),
+        }
+    }
+}
+
 /// Identifier for a skill tree node
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SkillNodeId(pub String);
@@ -359,4 +395,3 @@ impl From<String> for SkillNodeId {
         SkillNodeId(s)
     }
 }
-

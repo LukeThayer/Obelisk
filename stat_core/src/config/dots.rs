@@ -1,7 +1,7 @@
 //! DoT configuration loading with global registry support
 
-use crate::dot::{DotConfig, DotRegistry};
 use super::ConfigError;
+use crate::dot::{DotConfig, DotRegistry};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::OnceLock;
@@ -31,7 +31,9 @@ pub fn init_dot_registry_default() -> Result<(), ConfigError> {
 /// Get a reference to the global DoT registry
 /// Panics if not initialized - call init_dot_registry first
 pub fn dot_registry() -> &'static DotRegistry {
-    DOT_REGISTRY.get().expect("DoT registry not initialized. Call init_dot_registry() first.")
+    DOT_REGISTRY
+        .get()
+        .expect("DoT registry not initialized. Call init_dot_registry() first.")
 }
 
 /// Check if the DoT registry has been initialized

@@ -11,9 +11,10 @@ pub use generator::{Generator, GeneratorError};
 pub use item::Item;
 
 // Types users commonly need
-pub use types::{
-    AffixScope, AffixType, DamageType, ItemClass, Rarity, StatType, StatusEffect, Tag,
-};
+pub use types::{AffixScope, AffixType, DamageType, ItemClass, StatType, StatusEffect, Tag};
+
+// Config types
+pub use config::RarityConfig;
 
 // Storage - for persistence
 pub use storage::{BinaryDecode, BinaryEncode, ItemCollection};
@@ -36,6 +37,8 @@ mod tests {
             tier_min: 18,
             tier_max: 28,
             tier_max_value: Some((32, 48)),
+            granted_skills: vec![],
+            scaling: None,
         };
 
         assert_eq!(modifier.display(), "Adds 20 to 35 Fire Damage");
@@ -54,6 +57,8 @@ mod tests {
             tier_min: 40,
             tier_max: 60,
             tier_max_value: None,
+            granted_skills: vec![],
+            scaling: None,
         };
 
         assert_eq!(modifier.display(), "+50 Added Life");

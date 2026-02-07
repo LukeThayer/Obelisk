@@ -1,0 +1,40 @@
+[[rarities]]
+id = "normal"
+name = "Normal"
+max_prefixes = 0
+max_suffixes = 0
+affix_count_min = 0
+affix_count_max = 0
+generates_name = false
+sort_order = 0
+default = true
+
+[[rarities]]
+id = "magic"
+name = "Magic"
+max_prefixes = 1
+max_suffixes = 1
+affix_count_min = 1
+affix_count_max = 2
+generates_name = false
+sort_order = 1
+
+[[rarities]]
+id = "rare"
+name = "Rare"
+max_prefixes = 3
+max_suffixes = 3
+affix_count_min = 4
+affix_count_max = 6
+generates_name = true
+sort_order = 2
+
+[[rarities]]
+id = "unique"
+name = "Unique"
+max_prefixes = 0
+max_suffixes = 0
+affix_count_min = 0
+affix_count_max = 0
+generates_name = false
+sort_order = 3

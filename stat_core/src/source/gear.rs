@@ -1,7 +1,7 @@
 //! GearSource - Stats from equipped items
 
 use crate::source::StatSource;
-use crate::stat_block::StatAccumulator;
+use crate::stat_block::{PendingScaledModifier, StatAccumulator};
 use crate::types::EquipmentSlot;
 use loot_core::item::Modifier;
 use loot_core::types::{AffixScope, DamageType, StatType};
@@ -23,6 +23,18 @@ impl GearSource {
 
     /// Apply a modifier, handling local scope for weapons
     fn apply_modifier(&self, stats: &mut StatAccumulator, modifier: &Modifier, is_weapon: bool) {
+        // Attribute-scaled modifiers are deferred to Phase 1.5
+        if let Some(ref scaling) = modifier.scaling {
+            stats.pending_scaled.push(PendingScaledModifier {
+                stat: modifier.stat,
+                coefficient: modifier.value as f64,
+                attribute: scaling.attribute,
+                per: scaling.per,
+                max_stacks: scaling.max_stacks,
+            });
+            return;
+        }
+
         // Local scope on weapons: add to weapon damage
         if is_weapon && modifier.scope == AffixScope::Local {
             match modifier.stat {
@@ -35,22 +47,30 @@ impl GearSource {
                 StatType::AddedFireDamage => {
                     let min = modifier.value as f64;
                     let max = modifier.value_max.unwrap_or(modifier.value) as f64;
-                    stats.weapon_elemental_damages.push((DamageType::Fire, min, max));
+                    stats
+                        .weapon_elemental_damages
+                        .push((DamageType::Fire, min, max));
                 }
                 StatType::AddedColdDamage => {
                     let min = modifier.value as f64;
                     let max = modifier.value_max.unwrap_or(modifier.value) as f64;
-                    stats.weapon_elemental_damages.push((DamageType::Cold, min, max));
+                    stats
+                        .weapon_elemental_damages
+                        .push((DamageType::Cold, min, max));
                 }
                 StatType::AddedLightningDamage => {
                     let min = modifier.value as f64;
                     let max = modifier.value_max.unwrap_or(modifier.value) as f64;
-                    stats.weapon_elemental_damages.push((DamageType::Lightning, min, max));
+                    stats
+                        .weapon_elemental_damages
+                        .push((DamageType::Lightning, min, max));
                 }
                 StatType::AddedChaosDamage => {
                     let min = modifier.value as f64;
                     let max = modifier.value_max.unwrap_or(modifier.value) as f64;
-                    stats.weapon_elemental_damages.push((DamageType::Chaos, min, max));
+                    stats
+                        .weapon_elemental_damages
+                        .push((DamageType::Chaos, min, max));
                 }
                 StatType::IncreasedPhysicalDamage => {
                     stats.weapon_physical_increased += modifier.value as f64 / 100.0;
@@ -145,7 +165,7 @@ mod tests {
             name: "Test Sword".to_string(),
             base_name: "Sword".to_string(),
             class: loot_core::types::ItemClass::OneHandSword,
-            rarity: loot_core::types::Rarity::Normal,
+            rarity: "normal".to_string(),
             tags: vec![],
             requirements: loot_core::types::Requirements::default(),
             implicit: None,
@@ -153,6 +173,7 @@ mod tests {
             suffixes: vec![],
             defenses: loot_core::item::Defenses::default(),
             damage: None,
+            granted_skills: vec![],
         };
 
         let source = GearSource::new(EquipmentSlot::MainHand, item);

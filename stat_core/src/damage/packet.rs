@@ -47,6 +47,14 @@ pub struct DamagePacket {
     pub can_leech: bool,
     /// Whether this hit can trigger on-hit effects
     pub can_apply_on_hit: bool,
+    /// Whether this is a spell (for spell dodge)
+    pub is_spell: bool,
+    /// Attacker's culling strike threshold (% of max life)
+    pub culling_strike: f64,
+    /// Life gained on kill
+    pub life_on_kill: f64,
+    /// Mana gained on kill
+    pub mana_on_kill: f64,
 }
 
 impl Default for DamagePacket {
@@ -67,6 +75,10 @@ impl Default for DamagePacket {
             hit_count: 1,
             can_leech: true,
             can_apply_on_hit: true,
+            is_spell: false,
+            culling_strike: 0.0,
+            life_on_kill: 0.0,
+            mana_on_kill: 0.0,
         }
     }
 }
@@ -97,7 +109,11 @@ impl DamagePacket {
 
     /// Add damage of a type
     pub fn add_damage(&mut self, damage_type: DamageType, amount: f64) {
-        if let Some(existing) = self.damages.iter_mut().find(|d| d.damage_type == damage_type) {
+        if let Some(existing) = self
+            .damages
+            .iter_mut()
+            .find(|d| d.damage_type == damage_type)
+        {
             existing.amount += amount;
         } else {
             self.damages.push(FinalDamage {
@@ -195,7 +211,12 @@ pub struct PendingStatusEffect {
 }
 
 impl PendingStatusEffect {
-    pub fn new(effect_type: StatusEffect, status_damage: f64, duration: f64, magnitude: f64) -> Self {
+    pub fn new(
+        effect_type: StatusEffect,
+        status_damage: f64,
+        duration: f64,
+        magnitude: f64,
+    ) -> Self {
         PendingStatusEffect {
             effect_type,
             status_damage,

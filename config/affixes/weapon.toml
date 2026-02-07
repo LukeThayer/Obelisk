@@ -256,6 +256,31 @@ min = 15
 max = 34
 min_ilvl = 1
 
+# Skill-granting prefix
+[[affixes]]
+id = "skill_molten_strike"
+name = "Volcanic"
+type = "prefix"
+stat = "increased_fire_damage"
+scope = "global"
+tags = ["elemental", "fire", "attack"]
+allowed_classes = ["one_hand_sword", "two_hand_sword", "one_hand_axe", "two_hand_axe", "one_hand_mace", "two_hand_mace"]
+granted_skills = ["molten_strike"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 50
+min = 20
+max = 30
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 2
+weight = 150
+min = 10
+max = 19
+min_ilvl = 1
+
 # SUFFIXES
 
 [[affixes]]
@@ -346,4 +371,177 @@ tier = 3
 weight = 1000
 min = 20
 max = 59
+min_ilvl = 1
+
+[[affixes]]
+id = "increased_cast_speed"
+name = "of Casting"
+type = "suffix"
+stat = "increased_cast_speed"
+scope = "global"
+tags = ["caster", "speed"]
+allowed_classes = ["wand", "staff"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 18
+max = 25
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 10
+max = 17
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 5
+max = 9
+min_ilvl = 1
+
+[[affixes]]
+id = "increased_global_damage"
+name = "Devastating"
+type = "prefix"
+stat = "increased_global_damage"
+scope = "global"
+tags = ["damage"]
+allowed_classes = ["one_hand_sword", "two_hand_sword", "one_hand_axe", "two_hand_axe", "bow", "wand", "staff", "dagger", "claw"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 50
+min = 30
+max = 40
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 150
+min = 18
+max = 29
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 400
+min = 8
+max = 17
+min_ilvl = 1
+
+[[affixes]]
+id = "culling_strike"
+name = "of Culling"
+type = "suffix"
+stat = "culling_strike"
+scope = "global"
+tags = ["attack", "utility"]
+allowed_classes = ["one_hand_sword", "two_hand_sword", "one_hand_axe", "two_hand_axe", "bow", "dagger", "claw"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 30
+min = 10
+max = 10
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 80
+min = 5
+max = 5
+min_ilvl = 25
+
+[[affixes]]
+id = "life_on_kill"
+name = "of the Reaper"
+type = "suffix"
+stat = "life_on_kill"
+scope = "global"
+tags = ["life", "attack"]
+allowed_classes = ["one_hand_sword", "two_hand_sword", "one_hand_axe", "two_hand_axe", "bow", "dagger", "claw"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 150
+min = 25
+max = 40
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 400
+min = 12
+max = 24
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 800
+min = 5
+max = 11
+min_ilvl = 1
+
+[[affixes]]
+id = "mana_on_kill"
+name = "of the Scholar"
+type = "suffix"
+stat = "mana_on_kill"
+scope = "global"
+tags = ["mana", "caster"]
+allowed_classes = ["wand", "staff"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 150
+min = 10
+max = 18
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 400
+min = 5
+max = 9
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 800
+min = 2
+max = 4
+min_ilvl = 1
+
+[[affixes]]
+id = "weapon_damage_over_time_multiplier"
+name = "Decaying"
+type = "prefix"
+stat = "damage_over_time_multiplier"
+scope = "global"
+tags = ["damage", "dot"]
+allowed_classes = ["one_hand_sword", "two_hand_sword", "dagger", "claw", "wand", "staff"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 25
+max = 35
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 15
+max = 24
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 500
+min = 8
+max = 14
 min_ilvl = 1

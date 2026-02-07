@@ -4,6 +4,7 @@ use crate::types::SkillTag;
 use loot_core::types::{DamageType, StatusEffect};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
 /// Describes how a skill calculates its damage
 /// Loaded from TOML configuration
@@ -74,6 +75,14 @@ pub struct DamagePacketGenerator {
     /// Chance to pierce targets (0.0 to 1.0)
     #[serde(default)]
     pub pierce_chance: f64,
+
+    // === Resource Cost ===
+    /// Mana cost to use this skill
+    #[serde(default)]
+    pub mana_cost: f64,
+    /// Cooldown in seconds (0.0 = no cooldown)
+    #[serde(default)]
+    pub cooldown: f64,
 }
 
 /// Skill-specific status effect conversions
@@ -364,6 +373,8 @@ impl Default for DamagePacketGenerator {
             can_chain: false,
             chain_count: 0,
             pierce_chance: 0.0,
+            mana_cost: 0.0,
+            cooldown: 0.0,
         }
     }
 }
@@ -388,7 +399,19 @@ impl DamagePacketGenerator {
             can_chain: false,
             chain_count: 0,
             pierce_chance: 0.0,
+            mana_cost: 0.0,
+            cooldown: 0.0,
         }
+    }
+
+    /// Get the effective mana cost after reductions
+    pub fn effective_mana_cost(&self, reduced_mana_cost: f64) -> f64 {
+        (self.mana_cost * (1.0 - reduced_mana_cost)).max(0.0)
+    }
+
+    /// Get the effective cooldown after CDR
+    pub fn effective_cooldown(&self, cooldown_reduction: f64) -> f64 {
+        (self.cooldown * (1.0 - cooldown_reduction)).max(0.0)
     }
 
     /// Check if this skill is an attack (uses weapon)
@@ -403,7 +426,9 @@ impl DamagePacketGenerator {
 
     /// Check if this skill deals a specific damage type
     pub fn deals_damage_type(&self, damage_type: DamageType) -> bool {
-        self.base_damages.iter().any(|d| d.damage_type == damage_type)
+        self.base_damages
+            .iter()
+            .any(|d| d.damage_type == damage_type)
             || match damage_type {
                 DamageType::Physical => self.tags.contains(&SkillTag::Physical),
                 DamageType::Fire => self.tags.contains(&SkillTag::Fire),
@@ -477,6 +502,71 @@ impl DotApplication {
     /// Calculate DoT damage from hit damage
     pub fn calculate_dot_damage(&self, hit_damage: f64) -> f64 {
         hit_damage * self.damage_percent
+    }
+}
+
+impl fmt::Display for DamagePacketGenerator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Header
+        writeln!(f, "══ {} ══", self.name)?;
+
+        // Tags
+        if !self.tags.is_empty() {
+            let tags: Vec<String> = self.tags.iter().map(|t| t.to_string()).collect();
+            writeln!(f, "Tags: {}", tags.join(", "))?;
+        }
+
+        // Base damage
+        if !self.base_damages.is_empty() {
+            writeln!(f)?;
+            writeln!(f, "Base Damage")?;
+            for bd in &self.base_damages {
+                writeln!(f, "  {}: {:.0}-{:.0}", bd.damage_type, bd.min, bd.max)?;
+            }
+        }
+
+        // Speed and effectiveness
+        writeln!(f)?;
+        let speed_type = if self.is_spell() { "cast" } else { "attack" };
+        write!(
+            f,
+            "Speed: {:.2}x {}  Effectiveness: {:.0}%",
+            self.attack_speed_modifier,
+            speed_type,
+            self.damage_effectiveness * 100.0,
+        )?;
+
+        // Weapon effectiveness (only for attacks)
+        if self.weapon_effectiveness > 0.0 && self.is_attack() {
+            write!(f, "  Weapon: {:.0}%", self.weapon_effectiveness * 100.0)?;
+        }
+        writeln!(f)?;
+
+        // Crit
+        if self.base_crit_chance > 0.0 || self.crit_multiplier_bonus > 0.0 {
+            write!(f, "Crit: {:.1}%", self.base_crit_chance)?;
+            if self.crit_multiplier_bonus > 0.0 {
+                write!(f, " (+{:.0}% multi)", self.crit_multiplier_bonus * 100.0)?;
+            }
+            writeln!(f)?;
+        }
+
+        // Multi-hit / chain / pierce
+        let mut mechanics = Vec::new();
+        if self.hits_per_attack > 1 {
+            mechanics.push(format!("Hits: {}", self.hits_per_attack));
+        }
+        if self.can_chain && self.chain_count > 0 {
+            mechanics.push(format!("Chains: {}", self.chain_count));
+        }
+        if self.pierce_chance > 0.0 {
+            mechanics.push(format!("Pierce: {:.0}%", self.pierce_chance * 100.0));
+        }
+        if !mechanics.is_empty() {
+            write!(f, "{}", mechanics.join("  "))?;
+        }
+
+        Ok(())
     }
 }
 
@@ -568,8 +658,8 @@ mod tests {
     fn test_type_effectiveness() {
         let eff = DamageTypeEffectiveness {
             physical: 1.0,
-            fire: 1.5,    // 150% fire effectiveness
-            cold: 0.5,    // 50% cold effectiveness
+            fire: 1.5, // 150% fire effectiveness
+            cold: 0.5, // 50% cold effectiveness
             lightning: 1.0,
             chaos: 1.0,
         };

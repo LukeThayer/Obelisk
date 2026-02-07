@@ -1,7 +1,7 @@
 //! StatAccumulator - Collects stat modifications before applying to StatBlock
 
 use crate::stat_block::StatBlock;
-use loot_core::types::{DamageType, StatType, StatusEffect};
+use loot_core::types::{Attribute, DamageType, StatType, StatusEffect};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -16,6 +16,9 @@ pub struct StatusEffectStats {
     pub magnitude: f64,
     /// Additional max stacks beyond base
     pub max_stacks: i32,
+    /// Increased status damage (per-type + global folded in during aggregation)
+    #[serde(default)]
+    pub status_damage_increased: f64,
 }
 
 /// Conversion stats from damage types to a status effect
@@ -42,6 +45,18 @@ impl StatusConversions {
     }
 }
 
+/// A modifier whose effective value depends on a character attribute.
+/// Resolved during Phase 1.5 of stat application, after attributes are set.
+#[derive(Debug, Clone)]
+pub struct PendingScaledModifier {
+    pub stat: StatType,
+    pub coefficient: f64,
+    pub attribute: Attribute,
+    pub per: f64,
+    /// Maximum number of times the scaling can apply (caps attribute / per)
+    pub max_stacks: Option<u32>,
+}
+
 /// Accumulates stat modifications from various sources
 ///
 /// This is used during stat rebuilding to collect all modifications
@@ -64,6 +79,13 @@ pub struct StatAccumulator {
     pub wisdom_flat: f64,
     pub charisma_flat: f64,
     pub all_attributes_flat: f64,
+    pub strength_increased: f64,
+    pub dexterity_increased: f64,
+    pub intelligence_increased: f64,
+    pub constitution_increased: f64,
+    pub wisdom_increased: f64,
+    pub charisma_increased: f64,
+    pub all_attributes_increased: f64,
 
     // === Defenses ===
     pub armour_flat: f64,
@@ -136,6 +158,54 @@ pub struct StatAccumulator {
     pub status_stats: HashMap<StatusEffect, StatusEffectStats>,
     /// Damage type to status effect conversion percentages
     pub status_conversions: HashMap<StatusEffect, StatusConversions>,
+
+    // === Global Status Damage Stats ===
+    /// Increased damage for all status effects
+    pub all_status_damage_increased: f64,
+    /// Increased damage for damaging status effects (poison, bleed, burn)
+    pub damaging_status_damage_increased: f64,
+    /// Increased damage for non-damaging status effects (freeze, chill, static, fear, slow)
+    pub non_damaging_status_damage_increased: f64,
+    /// Bonus status magnitude on critical strike
+    pub status_magnitude_on_crit: f64,
+    /// Increased status damage on critical strike
+    pub status_damage_on_crit_increased: f64,
+
+    // === Block ===
+    pub block_chance: f64,
+    pub block_amount: f64,
+
+    // === Dodge ===
+    pub spell_dodge_chance: f64,
+
+    // === Area of Effect ===
+    pub area_of_effect_increased: f64,
+
+    // === Projectile ===
+    pub additional_projectiles: i32,
+    pub projectile_speed_increased: f64,
+
+    // === Skill Mechanics ===
+    pub skill_duration_increased: f64,
+    pub cooldown_reduction: f64,
+    pub reduced_mana_cost: f64,
+
+    // === Global Damage Modifiers ===
+    pub global_damage_increased: f64,
+    pub dot_multiplier: f64,
+
+    // === Defensive ===
+    pub reduced_damage_taken: f64,
+    pub physical_damage_reduction: f64,
+    pub physical_penetration: f64,
+    pub culling_strike: f64,
+
+    // === On-Kill Recovery ===
+    pub life_on_kill: f64,
+    pub mana_on_kill: f64,
+
+    // === Attribute-Scaled Modifiers (resolved in Phase 1.5) ===
+    pub pending_scaled: Vec<PendingScaledModifier>,
 }
 
 impl StatAccumulator {
@@ -173,7 +243,7 @@ impl StatAccumulator {
             StatType::IncreasedEvasion => self.evasion_increased += value / 100.0,
             StatType::IncreasedEnergyShield => self.energy_shield_increased += value / 100.0,
 
-            // Attributes
+            // Attributes (flat)
             StatType::AddedStrength => self.strength_flat += value,
             StatType::AddedDexterity => self.dexterity_flat += value,
             StatType::AddedConstitution => self.constitution_flat += value,
@@ -181,6 +251,14 @@ impl StatAccumulator {
             StatType::AddedWisdom => self.wisdom_flat += value,
             StatType::AddedCharisma => self.charisma_flat += value,
             StatType::AddedAllAttributes => self.all_attributes_flat += value,
+            // Attributes (percentage)
+            StatType::IncreasedStrength => self.strength_increased += value / 100.0,
+            StatType::IncreasedDexterity => self.dexterity_increased += value / 100.0,
+            StatType::IncreasedConstitution => self.constitution_increased += value / 100.0,
+            StatType::IncreasedIntelligence => self.intelligence_increased += value / 100.0,
+            StatType::IncreasedWisdom => self.wisdom_increased += value / 100.0,
+            StatType::IncreasedCharisma => self.charisma_increased += value / 100.0,
+            StatType::IncreasedAllAttributes => self.all_attributes_increased += value / 100.0,
 
             // Life and resources
             StatType::AddedLife => self.life_flat += value,
@@ -211,87 +289,293 @@ impl StatAccumulator {
 
             // === Status Effect Stats (using helper methods for HashMap access) ===
             // Poison
-            StatType::PoisonDamageOverTime => self.add_status_dot(StatusEffect::Poison, value / 100.0),
-            StatType::IncreasedPoisonDuration => self.add_status_duration(StatusEffect::Poison, value / 100.0),
-            StatType::PoisonMagnitude => self.add_status_magnitude(StatusEffect::Poison, value / 100.0),
-            StatType::PoisonMaxStacks => self.add_status_max_stacks(StatusEffect::Poison, value as i32),
-            StatType::ConvertPhysicalToPoison => self.add_conversion(DamageType::Physical, StatusEffect::Poison, value / 100.0),
-            StatType::ConvertFireToPoison => self.add_conversion(DamageType::Fire, StatusEffect::Poison, value / 100.0),
-            StatType::ConvertColdToPoison => self.add_conversion(DamageType::Cold, StatusEffect::Poison, value / 100.0),
-            StatType::ConvertLightningToPoison => self.add_conversion(DamageType::Lightning, StatusEffect::Poison, value / 100.0),
-            StatType::ConvertChaosToPoison => self.add_conversion(DamageType::Chaos, StatusEffect::Poison, value / 100.0),
+            StatType::PoisonDamageOverTime => {
+                self.add_status_dot(StatusEffect::Poison, value / 100.0)
+            }
+            StatType::IncreasedPoisonDuration => {
+                self.add_status_duration(StatusEffect::Poison, value / 100.0)
+            }
+            StatType::PoisonMagnitude => {
+                self.add_status_magnitude(StatusEffect::Poison, value / 100.0)
+            }
+            StatType::PoisonMaxStacks => {
+                self.add_status_max_stacks(StatusEffect::Poison, value as i32)
+            }
+            StatType::ConvertPhysicalToPoison => {
+                self.add_conversion(DamageType::Physical, StatusEffect::Poison, value / 100.0)
+            }
+            StatType::ConvertFireToPoison => {
+                self.add_conversion(DamageType::Fire, StatusEffect::Poison, value / 100.0)
+            }
+            StatType::ConvertColdToPoison => {
+                self.add_conversion(DamageType::Cold, StatusEffect::Poison, value / 100.0)
+            }
+            StatType::ConvertLightningToPoison => {
+                self.add_conversion(DamageType::Lightning, StatusEffect::Poison, value / 100.0)
+            }
+            StatType::ConvertChaosToPoison => {
+                self.add_conversion(DamageType::Chaos, StatusEffect::Poison, value / 100.0)
+            }
 
             // Bleed
-            StatType::BleedDamageOverTime => self.add_status_dot(StatusEffect::Bleed, value / 100.0),
-            StatType::IncreasedBleedDuration => self.add_status_duration(StatusEffect::Bleed, value / 100.0),
-            StatType::BleedMagnitude => self.add_status_magnitude(StatusEffect::Bleed, value / 100.0),
-            StatType::BleedMaxStacks => self.add_status_max_stacks(StatusEffect::Bleed, value as i32),
-            StatType::ConvertPhysicalToBleed => self.add_conversion(DamageType::Physical, StatusEffect::Bleed, value / 100.0),
-            StatType::ConvertFireToBleed => self.add_conversion(DamageType::Fire, StatusEffect::Bleed, value / 100.0),
-            StatType::ConvertColdToBleed => self.add_conversion(DamageType::Cold, StatusEffect::Bleed, value / 100.0),
-            StatType::ConvertLightningToBleed => self.add_conversion(DamageType::Lightning, StatusEffect::Bleed, value / 100.0),
-            StatType::ConvertChaosToBleed => self.add_conversion(DamageType::Chaos, StatusEffect::Bleed, value / 100.0),
+            StatType::BleedDamageOverTime => {
+                self.add_status_dot(StatusEffect::Bleed, value / 100.0)
+            }
+            StatType::IncreasedBleedDuration => {
+                self.add_status_duration(StatusEffect::Bleed, value / 100.0)
+            }
+            StatType::BleedMagnitude => {
+                self.add_status_magnitude(StatusEffect::Bleed, value / 100.0)
+            }
+            StatType::BleedMaxStacks => {
+                self.add_status_max_stacks(StatusEffect::Bleed, value as i32)
+            }
+            StatType::ConvertPhysicalToBleed => {
+                self.add_conversion(DamageType::Physical, StatusEffect::Bleed, value / 100.0)
+            }
+            StatType::ConvertFireToBleed => {
+                self.add_conversion(DamageType::Fire, StatusEffect::Bleed, value / 100.0)
+            }
+            StatType::ConvertColdToBleed => {
+                self.add_conversion(DamageType::Cold, StatusEffect::Bleed, value / 100.0)
+            }
+            StatType::ConvertLightningToBleed => {
+                self.add_conversion(DamageType::Lightning, StatusEffect::Bleed, value / 100.0)
+            }
+            StatType::ConvertChaosToBleed => {
+                self.add_conversion(DamageType::Chaos, StatusEffect::Bleed, value / 100.0)
+            }
 
             // Burn
             StatType::BurnDamageOverTime => self.add_status_dot(StatusEffect::Burn, value / 100.0),
-            StatType::IncreasedBurnDuration => self.add_status_duration(StatusEffect::Burn, value / 100.0),
+            StatType::IncreasedBurnDuration => {
+                self.add_status_duration(StatusEffect::Burn, value / 100.0)
+            }
             StatType::BurnMagnitude => self.add_status_magnitude(StatusEffect::Burn, value / 100.0),
             StatType::BurnMaxStacks => self.add_status_max_stacks(StatusEffect::Burn, value as i32),
-            StatType::ConvertPhysicalToBurn => self.add_conversion(DamageType::Physical, StatusEffect::Burn, value / 100.0),
-            StatType::ConvertFireToBurn => self.add_conversion(DamageType::Fire, StatusEffect::Burn, value / 100.0),
-            StatType::ConvertColdToBurn => self.add_conversion(DamageType::Cold, StatusEffect::Burn, value / 100.0),
-            StatType::ConvertLightningToBurn => self.add_conversion(DamageType::Lightning, StatusEffect::Burn, value / 100.0),
-            StatType::ConvertChaosToBurn => self.add_conversion(DamageType::Chaos, StatusEffect::Burn, value / 100.0),
+            StatType::ConvertPhysicalToBurn => {
+                self.add_conversion(DamageType::Physical, StatusEffect::Burn, value / 100.0)
+            }
+            StatType::ConvertFireToBurn => {
+                self.add_conversion(DamageType::Fire, StatusEffect::Burn, value / 100.0)
+            }
+            StatType::ConvertColdToBurn => {
+                self.add_conversion(DamageType::Cold, StatusEffect::Burn, value / 100.0)
+            }
+            StatType::ConvertLightningToBurn => {
+                self.add_conversion(DamageType::Lightning, StatusEffect::Burn, value / 100.0)
+            }
+            StatType::ConvertChaosToBurn => {
+                self.add_conversion(DamageType::Chaos, StatusEffect::Burn, value / 100.0)
+            }
 
             // Freeze
-            StatType::IncreasedFreezeDuration => self.add_status_duration(StatusEffect::Freeze, value / 100.0),
-            StatType::FreezeMagnitude => self.add_status_magnitude(StatusEffect::Freeze, value / 100.0),
-            StatType::FreezeMaxStacks => self.add_status_max_stacks(StatusEffect::Freeze, value as i32),
-            StatType::ConvertPhysicalToFreeze => self.add_conversion(DamageType::Physical, StatusEffect::Freeze, value / 100.0),
-            StatType::ConvertFireToFreeze => self.add_conversion(DamageType::Fire, StatusEffect::Freeze, value / 100.0),
-            StatType::ConvertColdToFreeze => self.add_conversion(DamageType::Cold, StatusEffect::Freeze, value / 100.0),
-            StatType::ConvertLightningToFreeze => self.add_conversion(DamageType::Lightning, StatusEffect::Freeze, value / 100.0),
-            StatType::ConvertChaosToFreeze => self.add_conversion(DamageType::Chaos, StatusEffect::Freeze, value / 100.0),
+            StatType::IncreasedFreezeDuration => {
+                self.add_status_duration(StatusEffect::Freeze, value / 100.0)
+            }
+            StatType::FreezeMagnitude => {
+                self.add_status_magnitude(StatusEffect::Freeze, value / 100.0)
+            }
+            StatType::FreezeMaxStacks => {
+                self.add_status_max_stacks(StatusEffect::Freeze, value as i32)
+            }
+            StatType::ConvertPhysicalToFreeze => {
+                self.add_conversion(DamageType::Physical, StatusEffect::Freeze, value / 100.0)
+            }
+            StatType::ConvertFireToFreeze => {
+                self.add_conversion(DamageType::Fire, StatusEffect::Freeze, value / 100.0)
+            }
+            StatType::ConvertColdToFreeze => {
+                self.add_conversion(DamageType::Cold, StatusEffect::Freeze, value / 100.0)
+            }
+            StatType::ConvertLightningToFreeze => {
+                self.add_conversion(DamageType::Lightning, StatusEffect::Freeze, value / 100.0)
+            }
+            StatType::ConvertChaosToFreeze => {
+                self.add_conversion(DamageType::Chaos, StatusEffect::Freeze, value / 100.0)
+            }
 
             // Chill
-            StatType::IncreasedChillDuration => self.add_status_duration(StatusEffect::Chill, value / 100.0),
-            StatType::ChillMagnitude => self.add_status_magnitude(StatusEffect::Chill, value / 100.0),
-            StatType::ChillMaxStacks => self.add_status_max_stacks(StatusEffect::Chill, value as i32),
-            StatType::ConvertPhysicalToChill => self.add_conversion(DamageType::Physical, StatusEffect::Chill, value / 100.0),
-            StatType::ConvertFireToChill => self.add_conversion(DamageType::Fire, StatusEffect::Chill, value / 100.0),
-            StatType::ConvertColdToChill => self.add_conversion(DamageType::Cold, StatusEffect::Chill, value / 100.0),
-            StatType::ConvertLightningToChill => self.add_conversion(DamageType::Lightning, StatusEffect::Chill, value / 100.0),
-            StatType::ConvertChaosToChill => self.add_conversion(DamageType::Chaos, StatusEffect::Chill, value / 100.0),
+            StatType::IncreasedChillDuration => {
+                self.add_status_duration(StatusEffect::Chill, value / 100.0)
+            }
+            StatType::ChillMagnitude => {
+                self.add_status_magnitude(StatusEffect::Chill, value / 100.0)
+            }
+            StatType::ChillMaxStacks => {
+                self.add_status_max_stacks(StatusEffect::Chill, value as i32)
+            }
+            StatType::ConvertPhysicalToChill => {
+                self.add_conversion(DamageType::Physical, StatusEffect::Chill, value / 100.0)
+            }
+            StatType::ConvertFireToChill => {
+                self.add_conversion(DamageType::Fire, StatusEffect::Chill, value / 100.0)
+            }
+            StatType::ConvertColdToChill => {
+                self.add_conversion(DamageType::Cold, StatusEffect::Chill, value / 100.0)
+            }
+            StatType::ConvertLightningToChill => {
+                self.add_conversion(DamageType::Lightning, StatusEffect::Chill, value / 100.0)
+            }
+            StatType::ConvertChaosToChill => {
+                self.add_conversion(DamageType::Chaos, StatusEffect::Chill, value / 100.0)
+            }
 
             // Static
-            StatType::IncreasedStaticDuration => self.add_status_duration(StatusEffect::Static, value / 100.0),
-            StatType::StaticMagnitude => self.add_status_magnitude(StatusEffect::Static, value / 100.0),
-            StatType::StaticMaxStacks => self.add_status_max_stacks(StatusEffect::Static, value as i32),
-            StatType::ConvertPhysicalToStatic => self.add_conversion(DamageType::Physical, StatusEffect::Static, value / 100.0),
-            StatType::ConvertFireToStatic => self.add_conversion(DamageType::Fire, StatusEffect::Static, value / 100.0),
-            StatType::ConvertColdToStatic => self.add_conversion(DamageType::Cold, StatusEffect::Static, value / 100.0),
-            StatType::ConvertLightningToStatic => self.add_conversion(DamageType::Lightning, StatusEffect::Static, value / 100.0),
-            StatType::ConvertChaosToStatic => self.add_conversion(DamageType::Chaos, StatusEffect::Static, value / 100.0),
+            StatType::IncreasedStaticDuration => {
+                self.add_status_duration(StatusEffect::Static, value / 100.0)
+            }
+            StatType::StaticMagnitude => {
+                self.add_status_magnitude(StatusEffect::Static, value / 100.0)
+            }
+            StatType::StaticMaxStacks => {
+                self.add_status_max_stacks(StatusEffect::Static, value as i32)
+            }
+            StatType::ConvertPhysicalToStatic => {
+                self.add_conversion(DamageType::Physical, StatusEffect::Static, value / 100.0)
+            }
+            StatType::ConvertFireToStatic => {
+                self.add_conversion(DamageType::Fire, StatusEffect::Static, value / 100.0)
+            }
+            StatType::ConvertColdToStatic => {
+                self.add_conversion(DamageType::Cold, StatusEffect::Static, value / 100.0)
+            }
+            StatType::ConvertLightningToStatic => {
+                self.add_conversion(DamageType::Lightning, StatusEffect::Static, value / 100.0)
+            }
+            StatType::ConvertChaosToStatic => {
+                self.add_conversion(DamageType::Chaos, StatusEffect::Static, value / 100.0)
+            }
 
             // Fear
-            StatType::IncreasedFearDuration => self.add_status_duration(StatusEffect::Fear, value / 100.0),
+            StatType::IncreasedFearDuration => {
+                self.add_status_duration(StatusEffect::Fear, value / 100.0)
+            }
             StatType::FearMagnitude => self.add_status_magnitude(StatusEffect::Fear, value / 100.0),
             StatType::FearMaxStacks => self.add_status_max_stacks(StatusEffect::Fear, value as i32),
-            StatType::ConvertPhysicalToFear => self.add_conversion(DamageType::Physical, StatusEffect::Fear, value / 100.0),
-            StatType::ConvertFireToFear => self.add_conversion(DamageType::Fire, StatusEffect::Fear, value / 100.0),
-            StatType::ConvertColdToFear => self.add_conversion(DamageType::Cold, StatusEffect::Fear, value / 100.0),
-            StatType::ConvertLightningToFear => self.add_conversion(DamageType::Lightning, StatusEffect::Fear, value / 100.0),
-            StatType::ConvertChaosToFear => self.add_conversion(DamageType::Chaos, StatusEffect::Fear, value / 100.0),
+            StatType::ConvertPhysicalToFear => {
+                self.add_conversion(DamageType::Physical, StatusEffect::Fear, value / 100.0)
+            }
+            StatType::ConvertFireToFear => {
+                self.add_conversion(DamageType::Fire, StatusEffect::Fear, value / 100.0)
+            }
+            StatType::ConvertColdToFear => {
+                self.add_conversion(DamageType::Cold, StatusEffect::Fear, value / 100.0)
+            }
+            StatType::ConvertLightningToFear => {
+                self.add_conversion(DamageType::Lightning, StatusEffect::Fear, value / 100.0)
+            }
+            StatType::ConvertChaosToFear => {
+                self.add_conversion(DamageType::Chaos, StatusEffect::Fear, value / 100.0)
+            }
 
             // Slow
-            StatType::IncreasedSlowDuration => self.add_status_duration(StatusEffect::Slow, value / 100.0),
+            StatType::IncreasedSlowDuration => {
+                self.add_status_duration(StatusEffect::Slow, value / 100.0)
+            }
             StatType::SlowMagnitude => self.add_status_magnitude(StatusEffect::Slow, value / 100.0),
             StatType::SlowMaxStacks => self.add_status_max_stacks(StatusEffect::Slow, value as i32),
-            StatType::ConvertPhysicalToSlow => self.add_conversion(DamageType::Physical, StatusEffect::Slow, value / 100.0),
-            StatType::ConvertFireToSlow => self.add_conversion(DamageType::Fire, StatusEffect::Slow, value / 100.0),
-            StatType::ConvertColdToSlow => self.add_conversion(DamageType::Cold, StatusEffect::Slow, value / 100.0),
-            StatType::ConvertLightningToSlow => self.add_conversion(DamageType::Lightning, StatusEffect::Slow, value / 100.0),
-            StatType::ConvertChaosToSlow => self.add_conversion(DamageType::Chaos, StatusEffect::Slow, value / 100.0),
+            StatType::ConvertPhysicalToSlow => {
+                self.add_conversion(DamageType::Physical, StatusEffect::Slow, value / 100.0)
+            }
+            StatType::ConvertFireToSlow => {
+                self.add_conversion(DamageType::Fire, StatusEffect::Slow, value / 100.0)
+            }
+            StatType::ConvertColdToSlow => {
+                self.add_conversion(DamageType::Cold, StatusEffect::Slow, value / 100.0)
+            }
+            StatType::ConvertLightningToSlow => {
+                self.add_conversion(DamageType::Lightning, StatusEffect::Slow, value / 100.0)
+            }
+            StatType::ConvertChaosToSlow => {
+                self.add_conversion(DamageType::Chaos, StatusEffect::Slow, value / 100.0)
+            }
+
+            // Increased status damage (per-type)
+            StatType::IncreasedPoisonDamage => {
+                self.add_status_damage_increased(StatusEffect::Poison, value / 100.0)
+            }
+            StatType::IncreasedBleedDamage => {
+                self.add_status_damage_increased(StatusEffect::Bleed, value / 100.0)
+            }
+            StatType::IncreasedBurnDamage => {
+                self.add_status_damage_increased(StatusEffect::Burn, value / 100.0)
+            }
+            StatType::IncreasedFreezeDamage => {
+                self.add_status_damage_increased(StatusEffect::Freeze, value / 100.0)
+            }
+            StatType::IncreasedChillDamage => {
+                self.add_status_damage_increased(StatusEffect::Chill, value / 100.0)
+            }
+            StatType::IncreasedStaticDamage => {
+                self.add_status_damage_increased(StatusEffect::Static, value / 100.0)
+            }
+            StatType::IncreasedFearDamage => {
+                self.add_status_damage_increased(StatusEffect::Fear, value / 100.0)
+            }
+            StatType::IncreasedSlowDamage => {
+                self.add_status_damage_increased(StatusEffect::Slow, value / 100.0)
+            }
+
+            // Increased status damage (global)
+            StatType::IncreasedAllStatusDamage => {
+                self.all_status_damage_increased += value / 100.0
+            }
+            StatType::IncreasedDamagingStatusDamage => {
+                self.damaging_status_damage_increased += value / 100.0
+            }
+            StatType::IncreasedNonDamagingStatusDamage => {
+                self.non_damaging_status_damage_increased += value / 100.0
+            }
+
+            // Crit-specific status
+            StatType::StatusMagnitudeOnCrit => {
+                self.status_magnitude_on_crit += value / 100.0
+            }
+            StatType::IncreasedStatusDamageOnCrit => {
+                self.status_damage_on_crit_increased += value / 100.0
+            }
+
+            // Block
+            StatType::BlockChance => self.block_chance += value,
+            StatType::BlockAmount => self.block_amount += value,
+
+            // Dodge
+            StatType::SpellDodgeChance => self.spell_dodge_chance += value,
+
+            // Area of Effect
+            StatType::IncreasedAreaOfEffect => self.area_of_effect_increased += value / 100.0,
+
+            // Projectile
+            StatType::AdditionalProjectiles => self.additional_projectiles += value as i32,
+            StatType::IncreasedProjectileSpeed => {
+                self.projectile_speed_increased += value / 100.0
+            }
+
+            // Skill mechanics
+            StatType::IncreasedSkillDuration => self.skill_duration_increased += value / 100.0,
+            StatType::CooldownReduction => self.cooldown_reduction += value / 100.0,
+            StatType::ReducedManaCost => self.reduced_mana_cost += value / 100.0,
+            StatType::IncreasedCastSpeed => self.cast_speed_increased += value / 100.0,
+
+            // Global damage modifiers
+            StatType::IncreasedGlobalDamage => self.global_damage_increased += value / 100.0,
+            StatType::DamageOverTimeMultiplier => self.dot_multiplier += value / 100.0,
+
+            // Defensive
+            StatType::ReducedDamageTaken => self.reduced_damage_taken += value / 100.0,
+            StatType::PhysicalDamageReduction => self.physical_damage_reduction += value,
+            StatType::PhysicalPenetration => self.physical_penetration += value,
+            StatType::CullingStrike => {
+                // Take the highest culling strike value
+                if value > self.culling_strike {
+                    self.culling_strike = value;
+                }
+            }
+
+            // On-kill recovery
+            StatType::LifeOnKill => self.life_on_kill += value,
+            StatType::ManaOnKill => self.mana_on_kill += value,
         }
     }
 
@@ -304,7 +588,10 @@ impl StatAccumulator {
 
     /// Add to a status effect's duration increased stat
     fn add_status_duration(&mut self, status: StatusEffect, value: f64) {
-        self.status_stats.entry(status).or_default().duration_increased += value;
+        self.status_stats
+            .entry(status)
+            .or_default()
+            .duration_increased += value;
     }
 
     /// Add to a status effect's magnitude stat
@@ -317,9 +604,20 @@ impl StatAccumulator {
         self.status_stats.entry(status).or_default().max_stacks += value;
     }
 
+    /// Add to a status effect's increased status damage
+    fn add_status_damage_increased(&mut self, status: StatusEffect, value: f64) {
+        self.status_stats
+            .entry(status)
+            .or_default()
+            .status_damage_increased += value;
+    }
+
     /// Add a damage type to status effect conversion
     fn add_conversion(&mut self, from: DamageType, to: StatusEffect, value: f64) {
-        self.status_conversions.entry(to).or_default().add_conversion(from, value);
+        self.status_conversions
+            .entry(to)
+            .or_default()
+            .add_conversion(from, value);
     }
 
     /// Get conversion percentage for a damage type to a status effect
@@ -337,7 +635,45 @@ impl StatAccumulator {
 
     /// Get status conversions for a given status effect type
     pub fn get_status_conversions(&self, status: StatusEffect) -> StatusConversions {
-        self.status_conversions.get(&status).cloned().unwrap_or_default()
+        self.status_conversions
+            .get(&status)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Apply a stat value to a StatBlock field as a flat addition.
+    /// Used by Phase 1.5 to resolve attribute-scaled modifiers.
+    fn apply_stat_to_block(block: &mut StatBlock, stat: StatType, value: f64) {
+        match stat {
+            StatType::AddedLife => block.max_life.add_flat(value),
+            StatType::AddedMana => block.max_mana.add_flat(value),
+            StatType::AddedArmour => block.armour.add_flat(value),
+            StatType::AddedEvasion => block.evasion.add_flat(value),
+            StatType::AddedEnergyShield => block.max_energy_shield += value,
+            StatType::AddedAccuracy => block.accuracy.add_flat(value),
+            StatType::AddedPhysicalDamage => block.global_physical_damage.add_flat(value),
+            StatType::AddedFireDamage => block.global_fire_damage.add_flat(value),
+            StatType::AddedColdDamage => block.global_cold_damage.add_flat(value),
+            StatType::AddedLightningDamage => block.global_lightning_damage.add_flat(value),
+            StatType::AddedChaosDamage => block.global_chaos_damage.add_flat(value),
+            StatType::FireResistance => block.fire_resistance.add_flat(value),
+            StatType::ColdResistance => block.cold_resistance.add_flat(value),
+            StatType::LightningResistance => block.lightning_resistance.add_flat(value),
+            StatType::ChaosResistance => block.chaos_resistance.add_flat(value),
+            StatType::LifeRegeneration => block.life_regen.add_flat(value),
+            StatType::ManaRegeneration => block.mana_regen.add_flat(value),
+            StatType::BlockChance => block.block_chance.add_flat(value),
+            StatType::BlockAmount => block.block_amount.add_flat(value),
+            StatType::LifeOnKill => block.life_on_kill += value,
+            StatType::ManaOnKill => block.mana_on_kill += value,
+            _ => {
+                #[cfg(debug_assertions)]
+                eprintln!(
+                    "Warning: unhandled stat type in attribute-scaled modifier: {:?}",
+                    stat
+                );
+            }
+        }
     }
 
     /// Apply accumulated stats to a StatBlock
@@ -355,12 +691,53 @@ impl StatAccumulator {
         }
 
         // Attributes (all_attributes applies to all)
-        block.strength.add_flat(self.strength_flat + self.all_attributes_flat);
-        block.dexterity.add_flat(self.dexterity_flat + self.all_attributes_flat);
-        block.intelligence.add_flat(self.intelligence_flat + self.all_attributes_flat);
-        block.constitution.add_flat(self.constitution_flat + self.all_attributes_flat);
-        block.wisdom.add_flat(self.wisdom_flat + self.all_attributes_flat);
-        block.charisma.add_flat(self.charisma_flat + self.all_attributes_flat);
+        block
+            .strength
+            .add_flat(self.strength_flat + self.all_attributes_flat);
+        block
+            .strength
+            .add_increased(self.strength_increased + self.all_attributes_increased);
+        block
+            .dexterity
+            .add_flat(self.dexterity_flat + self.all_attributes_flat);
+        block
+            .dexterity
+            .add_increased(self.dexterity_increased + self.all_attributes_increased);
+        block
+            .intelligence
+            .add_flat(self.intelligence_flat + self.all_attributes_flat);
+        block
+            .intelligence
+            .add_increased(self.intelligence_increased + self.all_attributes_increased);
+        block
+            .constitution
+            .add_flat(self.constitution_flat + self.all_attributes_flat);
+        block
+            .constitution
+            .add_increased(self.constitution_increased + self.all_attributes_increased);
+        block
+            .wisdom
+            .add_flat(self.wisdom_flat + self.all_attributes_flat);
+        block
+            .wisdom
+            .add_increased(self.wisdom_increased + self.all_attributes_increased);
+        block
+            .charisma
+            .add_flat(self.charisma_flat + self.all_attributes_flat);
+        block
+            .charisma
+            .add_increased(self.charisma_increased + self.all_attributes_increased);
+
+        // Phase 1.5: Resolve attribute-scaled modifiers now that attributes are set
+        for pending in &self.pending_scaled {
+            let attr_val = block.attribute_value(pending.attribute);
+            let mut stacks = attr_val / pending.per;
+            if let Some(max) = pending.max_stacks {
+                stacks = stacks.min(max as f64);
+            }
+            let effective = pending.coefficient * stacks;
+            Self::apply_stat_to_block(block, pending.stat, effective);
+        }
 
         // Defenses
         block.armour.add_flat(self.armour_flat);
@@ -369,55 +746,83 @@ impl StatAccumulator {
         block.evasion.add_increased(self.evasion_increased);
 
         // Resistances (all_resistances applies to elemental)
-        block.fire_resistance.add_flat(self.fire_resistance + self.all_resistances);
-        block.cold_resistance.add_flat(self.cold_resistance + self.all_resistances);
-        block.lightning_resistance.add_flat(self.lightning_resistance + self.all_resistances);
+        block
+            .fire_resistance
+            .add_flat(self.fire_resistance + self.all_resistances);
+        block
+            .cold_resistance
+            .add_flat(self.cold_resistance + self.all_resistances);
+        block
+            .lightning_resistance
+            .add_flat(self.lightning_resistance + self.all_resistances);
         block.chaos_resistance.add_flat(self.chaos_resistance);
 
         // Damage - apply elemental increased to fire/cold/lightning
-        block.global_physical_damage.add_flat(self.physical_damage_flat);
-        block.global_physical_damage.add_increased(self.physical_damage_increased);
+        block
+            .global_physical_damage
+            .add_flat(self.physical_damage_flat);
+        block
+            .global_physical_damage
+            .add_increased(self.physical_damage_increased);
         for more in &self.physical_damage_more {
             block.global_physical_damage.add_more(*more);
         }
 
         block.global_fire_damage.add_flat(self.fire_damage_flat);
-        block.global_fire_damage.add_increased(self.fire_damage_increased + self.elemental_damage_increased);
+        block
+            .global_fire_damage
+            .add_increased(self.fire_damage_increased + self.elemental_damage_increased);
         for more in &self.fire_damage_more {
             block.global_fire_damage.add_more(*more);
         }
 
         block.global_cold_damage.add_flat(self.cold_damage_flat);
-        block.global_cold_damage.add_increased(self.cold_damage_increased + self.elemental_damage_increased);
+        block
+            .global_cold_damage
+            .add_increased(self.cold_damage_increased + self.elemental_damage_increased);
         for more in &self.cold_damage_more {
             block.global_cold_damage.add_more(*more);
         }
 
-        block.global_lightning_damage.add_flat(self.lightning_damage_flat);
-        block.global_lightning_damage.add_increased(self.lightning_damage_increased + self.elemental_damage_increased);
+        block
+            .global_lightning_damage
+            .add_flat(self.lightning_damage_flat);
+        block
+            .global_lightning_damage
+            .add_increased(self.lightning_damage_increased + self.elemental_damage_increased);
         for more in &self.lightning_damage_more {
             block.global_lightning_damage.add_more(*more);
         }
 
         block.global_chaos_damage.add_flat(self.chaos_damage_flat);
-        block.global_chaos_damage.add_increased(self.chaos_damage_increased);
+        block
+            .global_chaos_damage
+            .add_increased(self.chaos_damage_increased);
         for more in &self.chaos_damage_more {
             block.global_chaos_damage.add_more(*more);
         }
 
         // Attack/Cast speed
-        block.attack_speed.add_increased(self.attack_speed_increased);
+        block
+            .attack_speed
+            .add_increased(self.attack_speed_increased);
         block.cast_speed.add_increased(self.cast_speed_increased);
 
         // Crit
         block.critical_chance.add_flat(self.critical_chance_flat);
-        block.critical_chance.add_increased(self.critical_chance_increased);
-        block.critical_multiplier.add_flat(self.critical_multiplier_flat);
+        block
+            .critical_chance
+            .add_increased(self.critical_chance_increased);
+        block
+            .critical_multiplier
+            .add_flat(self.critical_multiplier_flat);
 
         // Penetration
         block.fire_penetration.add_flat(self.fire_penetration);
         block.cold_penetration.add_flat(self.cold_penetration);
-        block.lightning_penetration.add_flat(self.lightning_penetration);
+        block
+            .lightning_penetration
+            .add_flat(self.lightning_penetration);
         block.chaos_penetration.add_flat(self.chaos_penetration);
 
         // Recovery
@@ -473,12 +878,82 @@ impl StatAccumulator {
         block.item_rarity_increased += self.item_rarity_increased;
         block.item_quantity_increased += self.item_quantity_increased;
 
+        // Block
+        block.block_chance.add_flat(self.block_chance);
+        block.block_amount.add_flat(self.block_amount);
+
+        // Dodge
+        block.spell_dodge_chance += self.spell_dodge_chance;
+
+        // Area of Effect
+        block.area_of_effect_increased += self.area_of_effect_increased;
+
+        // Projectile
+        block.additional_projectiles += self.additional_projectiles;
+        block.projectile_speed_increased += self.projectile_speed_increased;
+
+        // Skill mechanics
+        block.skill_duration_increased += self.skill_duration_increased;
+        block.cooldown_reduction += self.cooldown_reduction;
+        block.reduced_mana_cost += self.reduced_mana_cost;
+
+        // Global damage - apply to all damage types
+        if self.global_damage_increased != 0.0 {
+            block
+                .global_physical_damage
+                .add_increased(self.global_damage_increased);
+            block
+                .global_fire_damage
+                .add_increased(self.global_damage_increased);
+            block
+                .global_cold_damage
+                .add_increased(self.global_damage_increased);
+            block
+                .global_lightning_damage
+                .add_increased(self.global_damage_increased);
+            block
+                .global_chaos_damage
+                .add_increased(self.global_damage_increased);
+        }
+
+        // DoT multiplier
+        block.dot_multiplier += self.dot_multiplier;
+
+        // Defensive
+        block.reduced_damage_taken += self.reduced_damage_taken;
+        block.physical_damage_reduction += self.physical_damage_reduction;
+        block.physical_penetration.add_flat(self.physical_penetration);
+        block.culling_strike = self.culling_strike.max(block.culling_strike);
+
+        // On-kill recovery
+        block.life_on_kill += self.life_on_kill;
+        block.mana_on_kill += self.mana_on_kill;
+
         // Status effect stats - copy all accumulated stats and conversions
         for (status, stats) in &self.status_stats {
             block.status_effect_stats.set_stats(*status, *stats);
         }
         for (status, conversions) in &self.status_conversions {
-            block.status_effect_stats.set_conversions(*status, conversions.clone());
+            block
+                .status_effect_stats
+                .set_conversions(*status, conversions.clone());
         }
+
+        // Fold global status damage increases into per-type stats
+        for status in StatusEffect::all() {
+            let mut stats = block.status_effect_stats.get_stats(*status);
+            stats.status_damage_increased += self.all_status_damage_increased;
+            if status.is_damaging() {
+                stats.status_damage_increased += self.damaging_status_damage_increased;
+            } else {
+                stats.status_damage_increased += self.non_damaging_status_damage_increased;
+            }
+            block.status_effect_stats.set_stats(*status, stats);
+        }
+
+        // Copy crit-specific status fields
+        block.status_effect_stats.status_magnitude_on_crit = self.status_magnitude_on_crit;
+        block.status_effect_stats.status_damage_on_crit_increased =
+            self.status_damage_on_crit_increased;
     }
 }

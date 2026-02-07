@@ -183,3 +183,238 @@ weight = 1000
 min = 8
 max = 19
 min_ilvl = 1
+
+# Skill & Utility Stats
+
+[[affixes]]
+id = "acc_increased_area_of_effect"
+name = "of Expansion"
+type = "suffix"
+stat = "increased_area_of_effect"
+scope = "global"
+tags = ["amulet", "area", "utility"]
+allowed_classes = ["amulet"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 20
+max = 30
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 10
+max = 19
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 5
+max = 9
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_additional_projectiles"
+name = "Volley"
+type = "prefix"
+stat = "additional_projectiles"
+scope = "global"
+tags = ["amulet", "projectile", "attack"]
+allowed_classes = ["amulet"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 20
+min = 2
+max = 2
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 60
+min = 1
+max = 1
+min_ilvl = 25
+
+[[affixes]]
+id = "acc_increased_projectile_speed"
+name = "of Velocity"
+type = "suffix"
+stat = "increased_projectile_speed"
+scope = "global"
+tags = ["ring", "projectile", "attack"]
+allowed_classes = ["ring"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 20
+max = 30
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 10
+max = 19
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 5
+max = 9
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_increased_skill_duration"
+name = "of Endurance"
+type = "suffix"
+stat = "increased_skill_duration"
+scope = "global"
+tags = ["belt", "utility"]
+allowed_classes = ["belt"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 20
+max = 30
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 10
+max = 19
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 5
+max = 9
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_cooldown_reduction"
+name = "of Alacrity"
+type = "suffix"
+stat = "cooldown_reduction"
+scope = "global"
+tags = ["belt", "caster", "utility"]
+allowed_classes = ["belt"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 60
+min = 12
+max = 18
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 150
+min = 6
+max = 11
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 400
+min = 3
+max = 5
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_reduced_mana_cost"
+name = "of Efficiency"
+type = "suffix"
+stat = "reduced_mana_cost"
+scope = "global"
+tags = ["ring", "amulet", "mana", "caster"]
+allowed_classes = ["ring", "amulet"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 12
+max = 18
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 6
+max = 11
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 500
+min = 3
+max = 5
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_physical_penetration"
+name = "of Rending"
+type = "suffix"
+stat = "physical_penetration"
+scope = "global"
+tags = ["ring", "physical", "attack"]
+allowed_classes = ["ring"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 60
+min = 8
+max = 12
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 150
+min = 4
+max = 7
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 400
+min = 2
+max = 3
+min_ilvl = 1
+
+[[affixes]]
+id = "acc_damage_over_time_multiplier"
+name = "Withering"
+type = "prefix"
+stat = "damage_over_time_multiplier"
+scope = "global"
+tags = ["amulet", "damage", "dot"]
+allowed_classes = ["amulet"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 60
+min = 20
+max = 30
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 150
+min = 10
+max = 19
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 400
+min = 5
+max = 9
+min_ilvl = 1

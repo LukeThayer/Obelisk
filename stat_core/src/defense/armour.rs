@@ -28,6 +28,7 @@ pub fn calculate_armour_reduction(armour: f64, damage: f64) -> f64 {
     let reduction_percent = armour / (armour + constant * damage);
     let reduced = damage * (1.0 - reduction_percent);
 
+    // TODO: Is this correct?
     reduced.max(0.0)
 }
 

@@ -33,9 +33,9 @@ pub fn init_constants_default() -> Result<(), ConfigError> {
 ///
 /// Panics if constants have not been initialized via `init_constants()` or `init_constants_default()`.
 pub fn constants() -> &'static GameConstants {
-    GAME_CONSTANTS
-        .get()
-        .expect("GameConstants not initialized - call init_constants() or init_constants_default() first")
+    GAME_CONSTANTS.get().expect(
+        "GameConstants not initialized - call init_constants() or init_constants_default() first",
+    )
 }
 
 /// Check if constants have been initialized

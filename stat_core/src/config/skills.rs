@@ -1,7 +1,7 @@
 //! Skill configuration loading
 
-use crate::damage::DamagePacketGenerator;
 use super::ConfigError;
+use crate::damage::DamagePacketGenerator;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -14,7 +14,9 @@ pub struct SkillsConfig {
 }
 
 /// Load skill configurations from a TOML file
-pub fn load_skill_configs(path: &Path) -> Result<HashMap<String, DamagePacketGenerator>, ConfigError> {
+pub fn load_skill_configs(
+    path: &Path,
+) -> Result<HashMap<String, DamagePacketGenerator>, ConfigError> {
     let config: SkillsConfig = super::load_toml(path)?;
 
     let mut map = HashMap::new();
@@ -26,7 +28,9 @@ pub fn load_skill_configs(path: &Path) -> Result<HashMap<String, DamagePacketGen
 }
 
 /// Load skill configurations from a TOML string
-pub fn parse_skill_configs(content: &str) -> Result<HashMap<String, DamagePacketGenerator>, ConfigError> {
+pub fn parse_skill_configs(
+    content: &str,
+) -> Result<HashMap<String, DamagePacketGenerator>, ConfigError> {
     let config: SkillsConfig = super::parse_toml(content)?;
 
     let mut map = HashMap::new();
@@ -42,7 +46,10 @@ pub fn default_skills() -> HashMap<String, DamagePacketGenerator> {
     let toml = include_str!("../../../config/skills.toml");
     parse_skill_configs(toml).unwrap_or_else(|_| {
         let mut map = HashMap::new();
-        map.insert("basic_attack".to_string(), DamagePacketGenerator::basic_attack());
+        map.insert(
+            "basic_attack".to_string(),
+            DamagePacketGenerator::basic_attack(),
+        );
         map
     })
 }

@@ -19,6 +19,17 @@ pub enum DotStacking {
     },
 }
 
+/// How a status effect is applied to a target
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum StatusApplication {
+    /// Chance-based: apply_chance = status_damage / target_max_health
+    #[default]
+    Chance,
+    /// Buildup-based: status damage accumulates until threshold triggers application
+    Buildup { threshold: f64 },
+}
+
 /// Configuration for a DoT type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DotConfig {
@@ -47,6 +58,9 @@ pub struct DotConfig {
     /// Damage multiplier while target is moving (for bleed)
     #[serde(default = "default_moving_multiplier")]
     pub moving_multiplier: f64,
+    /// How this status effect is applied (chance-based or buildup-based)
+    #[serde(default)]
+    pub application: StatusApplication,
 }
 
 fn default_max_stacks() -> u32 {
@@ -100,6 +114,7 @@ mod tests {
             max_stacks: 1,
             stack_effectiveness: 1.0,
             moving_multiplier: 1.0,
+            application: StatusApplication::default(),
         };
 
         // 4.0 / 0.5 = 8 ticks

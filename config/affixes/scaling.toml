@@ -1,0 +1,165 @@
+# Attribute-scaling affixes
+# effective_value = rolled_value * (attribute / per)
+# e.g., tier rolls 2, per=5, character has 200 STR → effective = 2 × (200/5) = 80 flat life
+
+[[affixes]]
+id = "life_per_strength"
+name = "Brawn"
+type = "prefix"
+stat = "added_life"
+scope = "global"
+tags = ["life", "strength", "defense"]
+allowed_classes = ["belt", "body_armour", "amulet"]
+
+[affixes.scaling]
+attribute = "strength"
+per = 5
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 2
+max = 3
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 1
+max = 1
+min_ilvl = 25
+
+[[affixes]]
+id = "mana_per_intelligence"
+name = "Acuity"
+type = "prefix"
+stat = "added_mana"
+scope = "global"
+tags = ["mana", "intelligence", "caster"]
+allowed_classes = ["ring", "amulet"]
+
+[affixes.scaling]
+attribute = "intelligence"
+per = 4
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 2
+max = 3
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 1
+max = 2
+min_ilvl = 25
+
+[[affixes]]
+id = "es_per_intelligence"
+name = "Clarity"
+type = "prefix"
+stat = "added_energy_shield"
+scope = "global"
+tags = ["energy_shield", "intelligence", "caster"]
+allowed_classes = ["body_armour"]
+
+[affixes.scaling]
+attribute = "intelligence"
+per = 5
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 2
+max = 3
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 1
+max = 1
+min_ilvl = 25
+
+[[affixes]]
+id = "armour_per_strength"
+name = "Fortitude"
+type = "prefix"
+stat = "added_armour"
+scope = "global"
+tags = ["armour", "strength", "defense"]
+allowed_classes = ["body_armour", "shield"]
+
+[affixes.scaling]
+attribute = "strength"
+per = 3
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 2
+max = 3
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 1
+max = 2
+min_ilvl = 25
+
+[[affixes]]
+id = "accuracy_per_dexterity"
+name = "Precision"
+type = "suffix"
+stat = "added_accuracy"
+scope = "global"
+tags = ["accuracy", "dexterity", "attack"]
+allowed_classes = ["one_hand_sword", "one_hand_axe", "one_hand_mace", "dagger", "claw", "two_hand_sword", "two_hand_axe", "two_hand_mace", "bow"]
+
+[affixes.scaling]
+attribute = "dexterity"
+per = 2
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 3
+max = 5
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 1
+max = 2
+min_ilvl = 25
+
+[[affixes]]
+id = "evasion_per_dexterity"
+name = "Agility"
+type = "prefix"
+stat = "added_evasion"
+scope = "global"
+tags = ["evasion", "dexterity", "defense"]
+allowed_classes = ["body_armour", "boots"]
+
+[affixes.scaling]
+attribute = "dexterity"
+per = 4
+
+[[affixes.tiers]]
+tier = 1
+weight = 80
+min = 2
+max = 3
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 200
+min = 1
+max = 2
+min_ilvl = 25

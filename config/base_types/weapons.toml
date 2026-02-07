@@ -31,6 +31,7 @@ id = "crystal_wand"
 name = "Crystal Wand"
 class = "wand"
 tags = ["caster", "elemental", "intelligence", "cold", "lightning"]
+granted_skills = ["fireball"]
 
 [base_types.implicit]
 stat = "increased_critical_chance"

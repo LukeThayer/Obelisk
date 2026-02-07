@@ -2,7 +2,7 @@
 
 use super::{DamagePacket, DamagePacketGenerator, PendingStatusEffect, SkillStatusConversions};
 use crate::config::dot_registry;
-use crate::stat_block::{StatusEffectData, StatusEffectStats, StatBlock};
+use crate::stat_block::{StatBlock, StatusEffectData, StatusEffectStats};
 use loot_core::types::{DamageType, StatusEffect};
 use rand::Rng;
 use std::collections::HashMap;
@@ -77,7 +77,8 @@ pub fn calculate_damage(
         let more_mult = damage_stat.total_more_multiplier();
         let type_eff = skill.type_effectiveness.get(damage_type);
 
-        let scaled_damage = base_amount * increased_mult * more_mult * skill.damage_effectiveness * type_eff;
+        let scaled_damage =
+            base_amount * increased_mult * more_mult * skill.damage_effectiveness * type_eff;
         if scaled_damage > 0.0 {
             packet.add_damage(damage_type, scaled_damage);
         }
@@ -95,14 +96,18 @@ pub fn calculate_damage(
         }
     }
 
-    // Step 4: Set penetration from attacker stats
+    // Step 4: Set penetration from attacker stats (including physical)
     packet.fire_pen = attacker.fire_penetration.compute();
     packet.cold_pen = attacker.cold_penetration.compute();
     packet.lightning_pen = attacker.lightning_penetration.compute();
     packet.chaos_pen = attacker.chaos_penetration.compute();
 
-    // Step 5: Set accuracy from attacker stats
+    // Step 5: Set accuracy and metadata from attacker stats
     packet.accuracy = attacker.accuracy.compute();
+    packet.is_spell = skill.is_spell();
+    packet.culling_strike = attacker.culling_strike;
+    packet.life_on_kill = attacker.life_on_kill;
+    packet.mana_on_kill = attacker.mana_on_kill;
 
     // Step 6: Calculate status effect applications
     // Status damage is converted from hit damage (combining skill + player conversions)
@@ -137,19 +142,48 @@ pub fn calculate_damage(
             let stats = attacker.status_effect_stats.get_stats(status);
             let base_duration = registry.get_base_duration(status);
             let duration = base_duration * (1.0 + stats.duration_increased);
-            let magnitude = 1.0 + stats.magnitude;
+
+            // Apply increased status damage (per-type + global already folded in during aggregation)
+            let status_damage = status_damage * (1.0 + stats.status_damage_increased);
+
+            // If crit, apply crit-specific status damage bonus
+            let status_damage = if packet.is_critical {
+                status_damage
+                    * (1.0
+                        + attacker
+                            .status_effect_stats
+                            .status_damage_on_crit_increased)
+            } else {
+                status_damage
+            };
+
+            // Magnitude: base + crit bonus
+            let magnitude = 1.0
+                + stats.magnitude
+                + if packet.is_critical {
+                    attacker.status_effect_stats.status_magnitude_on_crit
+                } else {
+                    0.0
+                };
 
             // For damaging DoTs, calculate DoT DPS based on status damage
             let base_dot_percent = registry.get_base_damage_percent(status);
-            let dot_dps = calculate_status_dot_dps(base_dot_percent, status_damage, &stats);
-
-            packet.status_effects_to_apply.push(PendingStatusEffect::new_with_dot(
-                status,
+            let dot_dps = calculate_status_dot_dps(
+                base_dot_percent,
                 status_damage,
-                duration,
-                magnitude,
-                dot_dps,
-            ));
+                &stats,
+                attacker.dot_multiplier,
+            );
+
+            packet
+                .status_effects_to_apply
+                .push(PendingStatusEffect::new_with_dot(
+                    status,
+                    status_damage,
+                    duration,
+                    magnitude,
+                    dot_dps,
+                ));
         }
     }
 
@@ -158,7 +192,6 @@ pub fn calculate_damage(
 
     packet
 }
-
 
 /// Calculate combined status damage from skill conversions + player stat conversions
 fn calculate_combined_status_damage(
@@ -185,14 +218,19 @@ fn calculate_combined_status_damage(
 }
 
 /// Calculate DoT DPS for damaging status effects (Poison, Bleed, Burn)
-/// DoT DPS = base_dot_percent * status_damage * (1 + dot_increased)
-fn calculate_status_dot_dps(base_dot_percent: f64, status_damage: f64, stats: &StatusEffectStats) -> f64 {
+/// DoT DPS = base_dot_percent * status_damage * (1 + dot_increased) * (1 + dot_multiplier)
+fn calculate_status_dot_dps(
+    base_dot_percent: f64,
+    status_damage: f64,
+    stats: &StatusEffectStats,
+    dot_multiplier: f64,
+) -> f64 {
     if base_dot_percent == 0.0 {
         return 0.0;
     }
 
-    // Apply DoT increased modifier
-    base_dot_percent * status_damage * (1.0 + stats.dot_increased)
+    // Apply DoT increased modifier and global DoT multiplier
+    base_dot_percent * status_damage * (1.0 + stats.dot_increased) * (1.0 + dot_multiplier)
 }
 
 /// Calculate critical strike chance
@@ -215,10 +253,7 @@ fn calculate_crit_chance(attacker: &StatBlock, skill: &DamagePacketGenerator) ->
 }
 
 /// Calculate effective DPS for a skill
-pub fn calculate_skill_dps(
-    attacker: &StatBlock,
-    skill: &DamagePacketGenerator,
-) -> f64 {
+pub fn calculate_skill_dps(attacker: &StatBlock, skill: &DamagePacketGenerator) -> f64 {
     // Use average damage instead of random
     let avg_damages = calculate_average_damage_by_type(attacker, skill);
     let total_avg_damage: f64 = avg_damages.iter().map(|(_, amt)| amt).sum();
@@ -240,7 +275,11 @@ pub fn calculate_skill_dps(
 
     // Calculate status DoT DPS contribution from damaging statuses (Poison, Bleed, Burn)
     let mut dot_dps = 0.0;
-    for status in [StatusEffect::Poison, StatusEffect::Bleed, StatusEffect::Burn] {
+    for status in [
+        StatusEffect::Poison,
+        StatusEffect::Bleed,
+        StatusEffect::Burn,
+    ] {
         let status_damage = calculate_combined_status_damage(
             status,
             &avg_damages,
@@ -251,8 +290,25 @@ pub fn calculate_skill_dps(
         if status_damage > 0.0 {
             let registry = dot_registry();
             let stats = attacker.status_effect_stats.get_stats(status);
+
+            // Apply increased status damage
+            let status_damage = status_damage * (1.0 + stats.status_damage_increased);
+
+            // Weight crit status damage bonus by crit chance for average DPS
+            let status_damage = status_damage
+                * (1.0
+                    + attacker
+                        .status_effect_stats
+                        .status_damage_on_crit_increased
+                        * crit_chance);
+
             let base_dot_percent = registry.get_base_damage_percent(status);
-            let status_dot_dps = calculate_status_dot_dps(base_dot_percent, status_damage, &stats);
+            let status_dot_dps = calculate_status_dot_dps(
+                base_dot_percent,
+                status_damage,
+                &stats,
+                attacker.dot_multiplier,
+            );
             // Scale by attack speed (more hits = more DoT applications)
             dot_dps += status_dot_dps * speed;
         }
@@ -263,7 +319,10 @@ pub fn calculate_skill_dps(
 
 /// Calculate average damage by type (non-random)
 /// Returns Vec of (DamageType, scaled_amount) after conversions and scaling
-pub fn calculate_average_damage_by_type(attacker: &StatBlock, skill: &DamagePacketGenerator) -> Vec<(DamageType, f64)> {
+pub fn calculate_average_damage_by_type(
+    attacker: &StatBlock,
+    skill: &DamagePacketGenerator,
+) -> Vec<(DamageType, f64)> {
     // Step 1: Gather base damage averages (pre-conversion, pre-scaling)
     let mut base_damages: HashMap<DamageType, f64> = HashMap::new();
 
@@ -317,7 +376,8 @@ pub fn calculate_average_damage_by_type(attacker: &StatBlock, skill: &DamagePack
         let more_mult = damage_stat.total_more_multiplier();
         let type_eff = skill.type_effectiveness.get(damage_type);
 
-        let scaled = base_amount * increased_mult * more_mult * skill.damage_effectiveness * type_eff;
+        let scaled =
+            base_amount * increased_mult * more_mult * skill.damage_effectiveness * type_eff;
         if scaled > 0.0 {
             result.push((damage_type, scaled));
         }

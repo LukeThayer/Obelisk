@@ -6,7 +6,7 @@ mod types;
 
 pub use active::ActiveDoT;
 pub use tick::apply_dot;
-pub use types::{DotConfig, DotStacking};
+pub use types::{DotConfig, DotStacking, StatusApplication};
 
 use std::collections::HashMap;
 

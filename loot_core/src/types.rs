@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Core attributes for requirements and scaling
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -33,6 +34,18 @@ pub enum DamageType {
     Chaos,
 }
 
+impl fmt::Display for DamageType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DamageType::Physical => write!(f, "Physical"),
+            DamageType::Fire => write!(f, "Fire"),
+            DamageType::Cold => write!(f, "Cold"),
+            DamageType::Lightning => write!(f, "Lightning"),
+            DamageType::Chaos => write!(f, "Chaos"),
+        }
+    }
+}
+
 /// Status effect types that damage can be converted to
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -47,33 +60,41 @@ pub enum StatusEffect {
     Bleed,
 }
 
-/// Item rarity levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum Rarity {
-    #[default]
-    Normal,
-    Magic,
-    Rare,
-    Unique,
-}
-
-impl Rarity {
-    pub fn max_prefixes(&self) -> usize {
-        match self {
-            Rarity::Normal => 0,
-            Rarity::Magic => 1,
-            Rarity::Rare => 3,
-            Rarity::Unique => 0, // Uniques have fixed mods
-        }
+impl StatusEffect {
+    /// Get all status effect variants
+    pub fn all() -> &'static [StatusEffect] {
+        &[
+            StatusEffect::Poison,
+            StatusEffect::Bleed,
+            StatusEffect::Burn,
+            StatusEffect::Freeze,
+            StatusEffect::Chill,
+            StatusEffect::Static,
+            StatusEffect::Fear,
+            StatusEffect::Slow,
+        ]
     }
 
-    pub fn max_suffixes(&self) -> usize {
+    /// Whether this is a damaging status effect (has a DoT component)
+    pub fn is_damaging(&self) -> bool {
+        matches!(
+            self,
+            StatusEffect::Poison | StatusEffect::Bleed | StatusEffect::Burn
+        )
+    }
+}
+
+impl fmt::Display for StatusEffect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Rarity::Normal => 0,
-            Rarity::Magic => 1,
-            Rarity::Rare => 3,
-            Rarity::Unique => 0,
+            StatusEffect::Freeze => write!(f, "Freeze"),
+            StatusEffect::Chill => write!(f, "Chill"),
+            StatusEffect::Burn => write!(f, "Burn"),
+            StatusEffect::Fear => write!(f, "Fear"),
+            StatusEffect::Slow => write!(f, "Slow"),
+            StatusEffect::Static => write!(f, "Static"),
+            StatusEffect::Poison => write!(f, "Poison"),
+            StatusEffect::Bleed => write!(f, "Bleed"),
         }
     }
 }
@@ -263,7 +284,7 @@ pub enum StatType {
     IncreasedArmour,
     IncreasedEvasion,
     IncreasedEnergyShield,
-    // Attributes
+    // Attributes (flat)
     AddedStrength,
     AddedDexterity,
     AddedConstitution,
@@ -271,6 +292,14 @@ pub enum StatType {
     AddedWisdom,
     AddedCharisma,
     AddedAllAttributes,
+    // Attributes (percentage)
+    IncreasedStrength,
+    IncreasedDexterity,
+    IncreasedConstitution,
+    IncreasedIntelligence,
+    IncreasedWisdom,
+    IncreasedCharisma,
+    IncreasedAllAttributes,
     // Life and resources
     AddedLife,
     AddedMana,
@@ -293,6 +322,48 @@ pub enum StatType {
     IncreasedMovementSpeed,
     IncreasedItemRarity,
     IncreasedItemQuantity,
+    // Increased status damage (per-type)
+    IncreasedPoisonDamage,
+    IncreasedBleedDamage,
+    IncreasedBurnDamage,
+    IncreasedFreezeDamage,
+    IncreasedChillDamage,
+    IncreasedStaticDamage,
+    IncreasedFearDamage,
+    IncreasedSlowDamage,
+    // Increased status damage (global)
+    IncreasedAllStatusDamage,
+    IncreasedDamagingStatusDamage,
+    IncreasedNonDamagingStatusDamage,
+    // Crit-specific status
+    StatusMagnitudeOnCrit,
+    IncreasedStatusDamageOnCrit,
+    // Block
+    BlockChance,
+    BlockAmount,
+    // Dodge
+    SpellDodgeChance,
+    // Area of Effect
+    IncreasedAreaOfEffect,
+    // Projectile
+    AdditionalProjectiles,
+    IncreasedProjectileSpeed,
+    // Skill mechanics
+    IncreasedSkillDuration,
+    CooldownReduction,
+    ReducedManaCost,
+    IncreasedCastSpeed,
+    // Damage modifiers (global)
+    IncreasedGlobalDamage,
+    DamageOverTimeMultiplier,
+    // Defensive
+    ReducedDamageTaken,
+    PhysicalDamageReduction,
+    PhysicalPenetration,
+    CullingStrike,
+    // On-kill recovery
+    LifeOnKill,
+    ManaOnKill,
 }
 
 /// Attribute requirements for equipping an item

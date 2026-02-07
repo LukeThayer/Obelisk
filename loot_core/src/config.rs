@@ -13,6 +13,7 @@ pub struct Config {
     pub uniques: HashMap<String, UniqueConfig>,
     pub unique_recipes: Vec<UniqueRecipeConfig>,
     pub rare_names: RareNamesConfig,
+    pub rarities: HashMap<String, RarityConfig>,
 }
 
 impl Config {
@@ -25,6 +26,7 @@ impl Config {
     ///     currencies/    - .toml files containing [[currencies]] arrays
     ///     uniques/       - .toml files each containing [unique] and optional [recipe]
     ///     names.toml     - optional file containing [rare_names] section
+    ///     rarities.toml  - rarity definitions
     pub fn load_from_dir(dir: &Path) -> Result<Self, ConfigError> {
         let base_types = Self::load_base_types_dir(&dir.join("base_types"))?;
         let affixes = Self::load_affixes_dir(&dir.join("affixes"))?;
@@ -32,6 +34,7 @@ impl Config {
         let currencies = Self::load_currencies_dir(&dir.join("currencies"))?;
         let (uniques, unique_recipes) = Self::load_uniques_dir(&dir.join("uniques"))?;
         let rare_names = Self::load_names(&dir.join("names.toml"))?;
+        let rarities = Self::load_rarities(&dir.join("rarities.toml"))?;
 
         Ok(Config {
             base_types,
@@ -41,7 +44,49 @@ impl Config {
             uniques,
             unique_recipes,
             rare_names,
+            rarities,
         })
+    }
+
+    /// Get the default rarity ID
+    pub fn default_rarity_id(&self) -> &str {
+        self.rarities
+            .values()
+            .find(|r| r.default)
+            .map(|r| r.id.as_str())
+            .unwrap_or("normal")
+    }
+
+    /// Get a rarity config by ID
+    pub fn get_rarity(&self, id: &str) -> Option<&RarityConfig> {
+        self.rarities.get(id)
+    }
+
+    /// Load rarities configuration from rarities.toml
+    fn load_rarities(path: &Path) -> Result<HashMap<String, RarityConfig>, ConfigError> {
+        if !path.exists() {
+            return Ok(HashMap::new());
+        }
+
+        let content = Self::read_file_with_context(path)?;
+        let wrapper: RaritiesWrapper = Self::parse_toml_with_context(&content, path)?;
+
+        let default_count = wrapper.rarities.iter().filter(|r| r.default).count();
+        if default_count != 1 && !wrapper.rarities.is_empty() {
+            return Err(ConfigError::Io {
+                error: std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Expected exactly 1 default rarity, found {}", default_count),
+                ),
+                path: Some(path.to_path_buf()),
+            });
+        }
+
+        let mut result = HashMap::new();
+        for rarity in wrapper.rarities {
+            result.insert(rarity.id.clone(), rarity);
+        }
+        Ok(result)
     }
 
     /// Load rare names configuration from names.toml
@@ -361,6 +406,9 @@ pub struct BaseTypeConfig {
     pub damage: Option<DamageConfig>,
     #[serde(default)]
     pub requirements: Requirements,
+    /// Skill IDs granted by this base type (references config/skills.toml)
+    #[serde(default)]
+    pub granted_skills: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -409,6 +457,18 @@ pub struct RollRange {
     pub max: i32,
 }
 
+/// Configuration for attribute-scaling affixes
+/// e.g., "+1 life per 5 Strength" means effective_value = rolled_value * (attribute / per)
+/// With max_stacks, the multiplier is capped: effective = rolled_value * min(attribute / per, max_stacks)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScalingConfig {
+    pub attribute: Attribute,
+    pub per: f64,
+    /// Maximum number of times the scaling can apply (caps attribute / per)
+    #[serde(default)]
+    pub max_stacks: Option<u32>,
+}
+
 /// Affix configuration with tiers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AffixConfig {
@@ -425,6 +485,12 @@ pub struct AffixConfig {
     #[serde(default)]
     pub allowed_classes: Vec<ItemClass>,
     pub tiers: Vec<AffixTierConfig>,
+    /// Skill IDs granted by this affix (references config/skills.toml)
+    #[serde(default)]
+    pub granted_skills: Vec<String>,
+    /// Optional attribute scaling — when present, effective value = rolled_value * (attribute / per)
+    #[serde(default)]
+    pub scaling: Option<ScalingConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -477,9 +543,9 @@ pub struct CurrencyConfig {
 /// Requirements for using a currency
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CurrencyRequirements {
-    /// Item must be one of these rarities
+    /// Item must be one of these rarities (rarity IDs)
     #[serde(default)]
-    pub rarities: Vec<Rarity>,
+    pub rarities: Vec<String>,
     /// Item must have at least one affix
     #[serde(default)]
     pub has_affix: bool,
@@ -491,9 +557,9 @@ pub struct CurrencyRequirements {
 /// Effects when a currency is applied
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CurrencyEffects {
-    /// Set the item's rarity
+    /// Set the item's rarity (rarity ID)
     #[serde(default)]
-    pub set_rarity: Option<Rarity>,
+    pub set_rarity: Option<String>,
     /// Remove all existing affixes before other effects
     #[serde(default)]
     pub clear_affixes: bool,
@@ -675,8 +741,8 @@ fn default_rare_prefixes() -> Vec<String> {
 
 fn default_rare_suffixes() -> Vec<String> {
     vec![
-        "Bane", "Edge", "Fang", "Bite", "Roar", "Song", "Call", "Cry", "Grasp", "Touch",
-        "Strike", "Blow", "Mark", "Brand", "Scar", "Ward", "Guard", "Veil", "Shroud", "Mantle",
+        "Bane", "Edge", "Fang", "Bite", "Roar", "Song", "Call", "Cry", "Grasp", "Touch", "Strike",
+        "Blow", "Mark", "Brand", "Scar", "Ward", "Guard", "Veil", "Shroud", "Mantle",
     ]
     .into_iter()
     .map(String::from)
@@ -688,4 +754,38 @@ fn default_rare_suffixes() -> Vec<String> {
 struct NamesWrapper {
     #[serde(default)]
     rare_names: RareNamesConfig,
+}
+
+/// Rarity configuration loaded from rarities.toml
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RarityConfig {
+    /// Unique identifier (e.g., "normal", "magic", "rare")
+    pub id: String,
+    /// Display name
+    pub name: String,
+    /// Maximum number of prefix modifiers
+    pub max_prefixes: usize,
+    /// Maximum number of suffix modifiers
+    pub max_suffixes: usize,
+    /// Minimum number of affixes to roll when creating items of this rarity
+    #[serde(default)]
+    pub affix_count_min: u32,
+    /// Maximum number of affixes to roll when creating items of this rarity
+    #[serde(default)]
+    pub affix_count_max: u32,
+    /// Whether to generate a random name for items of this rarity
+    #[serde(default)]
+    pub generates_name: bool,
+    /// Sort order for display (lower = shown first)
+    #[serde(default)]
+    pub sort_order: u32,
+    /// Whether this is the default rarity for new items
+    #[serde(default)]
+    pub default: bool,
+}
+
+#[derive(Deserialize)]
+struct RaritiesWrapper {
+    #[serde(default)]
+    rarities: Vec<RarityConfig>,
 }

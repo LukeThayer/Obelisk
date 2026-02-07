@@ -234,8 +234,7 @@ impl ItemCollection {
     /// Load from file in JSON format
     pub fn load_json(path: &std::path::Path) -> io::Result<Self> {
         let json = std::fs::read_to_string(path)?;
-        serde_json::from_str(&json)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        serde_json::from_str(&json).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 }
 

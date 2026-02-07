@@ -1233,3 +1233,193 @@ weight = 600
 min = 1
 max = 1
 min_ilvl = 1
+
+# =============================================================================
+# INCREASED STATUS DAMAGE
+# =============================================================================
+
+# Per-type increased status damage
+
+[[affixes]]
+id = "increased_poison_damage"
+name = "Pestilent"
+type = "prefix"
+stat = "increased_poison_damage"
+scope = "global"
+tags = ["poison", "chaos", "ailment", "damage"]
+allowed_classes = ["dagger", "claw", "one_hand_sword", "bow", "gloves"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 30
+max = 50
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 18
+max = 29
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 8
+max = 17
+min_ilvl = 1
+
+[[affixes]]
+id = "increased_bleed_damage"
+name = "Rending"
+type = "prefix"
+stat = "increased_bleed_damage"
+scope = "global"
+tags = ["bleed", "physical", "ailment", "damage"]
+allowed_classes = ["one_hand_sword", "two_hand_sword", "one_hand_axe", "two_hand_axe", "dagger"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 30
+max = 50
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 18
+max = 29
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 8
+max = 17
+min_ilvl = 1
+
+[[affixes]]
+id = "increased_burn_damage"
+name = "Pyroclastic"
+type = "prefix"
+stat = "increased_burn_damage"
+scope = "global"
+tags = ["burn", "fire", "elemental", "ailment", "damage"]
+allowed_classes = ["wand", "staff", "one_hand_sword", "two_hand_sword"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 30
+max = 50
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 18
+max = 29
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 8
+max = 17
+min_ilvl = 1
+
+# Global increased status damage
+
+[[affixes]]
+id = "increased_all_status_damage"
+name = "Afflicting"
+type = "suffix"
+stat = "increased_all_status_damage"
+scope = "global"
+tags = ["ailment", "damage"]
+allowed_classes = ["gloves", "helmet", "amulet"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 20
+max = 30
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 12
+max = 19
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 5
+max = 11
+min_ilvl = 1
+
+# Crit-specific status
+
+[[affixes]]
+id = "status_magnitude_on_crit"
+name = "of Catalysis"
+type = "suffix"
+stat = "status_magnitude_on_crit"
+scope = "global"
+tags = ["ailment", "critical"]
+allowed_classes = ["dagger", "claw", "wand", "amulet"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 25
+max = 40
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 15
+max = 24
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 8
+max = 14
+min_ilvl = 1
+
+[[affixes]]
+id = "increased_status_damage_on_crit"
+name = "of Malignance"
+type = "suffix"
+stat = "increased_status_damage_on_crit"
+scope = "global"
+tags = ["ailment", "critical", "damage"]
+allowed_classes = ["dagger", "claw", "wand", "amulet"]
+
+[[affixes.tiers]]
+tier = 1
+weight = 100
+min = 30
+max = 50
+min_ilvl = 50
+
+[[affixes.tiers]]
+tier = 2
+weight = 300
+min = 18
+max = 29
+min_ilvl = 25
+
+[[affixes.tiers]]
+tier = 3
+weight = 600
+min = 8
+max = 17
+min_ilvl = 1

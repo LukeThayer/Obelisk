@@ -101,9 +101,9 @@ mod tests {
             "ignite".to_string(),
             "player".to_string(),
             DamageType::Fire,
-            50.0,  // 50 damage per tick
-            0.5,   // tick every 0.5 seconds
-            4.0,   // 4 second duration
+            50.0, // 50 damage per tick
+            0.5,  // tick every 0.5 seconds
+            4.0,  // 4 second duration
         );
 
         // DPS = 50 / 0.5 = 100

@@ -20,7 +20,11 @@ impl DotTickResult {
     }
 
     pub fn add_damage(&mut self, damage_type: DamageType, amount: f64) {
-        if let Some(entry) = self.damage_by_type.iter_mut().find(|(t, _)| *t == damage_type) {
+        if let Some(entry) = self
+            .damage_by_type
+            .iter_mut()
+            .find(|(t, _)| *t == damage_type)
+        {
             entry.1 += amount;
         } else {
             self.damage_by_type.push((damage_type, amount));
@@ -78,11 +82,7 @@ pub fn process_dot_tick(
 }
 
 /// Apply a new DoT to a list of active DoTs, respecting stacking rules
-pub fn apply_dot(
-    dots: &mut Vec<ActiveDoT>,
-    new_dot: ActiveDoT,
-    config: &DotConfig,
-) {
+pub fn apply_dot(dots: &mut Vec<ActiveDoT>, new_dot: ActiveDoT, config: &DotConfig) {
     match &config.stacking {
         DotStacking::StrongestOnly => {
             // Find existing DoT of same type
@@ -99,9 +99,15 @@ pub fn apply_dot(
             // Just add the new DoT
             dots.push(new_dot);
         }
-        DotStacking::Limited { max_stacks, stack_effectiveness } => {
+        DotStacking::Limited {
+            max_stacks,
+            stack_effectiveness,
+        } => {
             // Count existing stacks of this type
-            let existing_count = dots.iter().filter(|d| d.dot_type == new_dot.dot_type).count();
+            let existing_count = dots
+                .iter()
+                .filter(|d| d.dot_type == new_dot.dot_type)
+                .count();
 
             if existing_count < *max_stacks as usize {
                 // Add with appropriate effectiveness
@@ -114,7 +120,10 @@ pub fn apply_dot(
             } else {
                 // At max stacks - refresh the weakest or oldest
                 // For simplicity, refresh the oldest (first found)
-                if let Some(oldest) = dots.iter_mut().find(|d| d.dot_type == new_dot.dot_type && !d.is_strongest) {
+                if let Some(oldest) = dots
+                    .iter_mut()
+                    .find(|d| d.dot_type == new_dot.dot_type && !d.is_strongest)
+                {
                     oldest.refresh(new_dot.total_duration, new_dot.damage_per_tick);
                 }
             }
@@ -178,6 +187,7 @@ pub fn dot_dps_by_type(dots: &[ActiveDoT]) -> Vec<(DamageType, f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dot::StatusApplication;
     use std::collections::HashMap;
 
     fn make_ignite_config() -> DotConfig {
@@ -192,6 +202,7 @@ mod tests {
             max_stacks: 1,
             stack_effectiveness: 1.0,
             moving_multiplier: 1.0,
+            application: StatusApplication::default(),
         }
     }
 
@@ -210,6 +221,7 @@ mod tests {
             max_stacks: 8,
             stack_effectiveness: 0.5,
             moving_multiplier: 2.0,
+            application: StatusApplication::default(),
         }
     }
 
