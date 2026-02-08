@@ -208,6 +208,9 @@ pub struct PendingStatusEffect {
     /// For damaging DoTs (Poison, Bleed, Burn): damage per second
     /// Based on base_dot_percent * status_damage
     pub dot_dps: f64,
+    /// Increased chance to apply (from skill). 0.0 = no bonus, 0.2 = 20% increased.
+    /// Final chance = (status_damage / target_max_health) * (1.0 + apply_chance_increased)
+    pub apply_chance_increased: f64,
 }
 
 impl PendingStatusEffect {
@@ -223,6 +226,7 @@ impl PendingStatusEffect {
             duration,
             magnitude,
             dot_dps: 0.0,
+            apply_chance_increased: 0.0,
         }
     }
 
@@ -240,6 +244,7 @@ impl PendingStatusEffect {
             duration,
             magnitude,
             dot_dps,
+            apply_chance_increased: 0.0,
         }
     }
 
@@ -249,7 +254,8 @@ impl PendingStatusEffect {
         if target_max_health <= 0.0 {
             return 0.0;
         }
-        (self.status_damage / target_max_health).clamp(0.0, 1.0)
+        ((self.status_damage / target_max_health) * (1.0 + self.apply_chance_increased))
+            .clamp(0.0, 1.0)
     }
 
     /// Check if this is a damaging status effect

@@ -62,6 +62,13 @@ pub struct DamagePacketGenerator {
     #[serde(default)]
     pub type_effectiveness: DamageTypeEffectiveness,
 
+    // === Status Effect Chance Scaling ===
+    /// Per-status-effect increased chance to apply
+    /// Keys are lowercase status names (e.g., "burn", "poison")
+    /// Values are increased multipliers (0.2 = 20% increased chance)
+    #[serde(default)]
+    pub status_chance_increased: HashMap<String, f64>,
+
     // === Special Mechanics ===
     /// Number of hits per attack (for multi-hit skills)
     #[serde(default = "default_hits")]
@@ -369,6 +376,7 @@ impl Default for DamagePacketGenerator {
             status_conversions: SkillStatusConversions::default(),
             damage_conversions: DamageConversions::default(),
             type_effectiveness: DamageTypeEffectiveness::default(),
+            status_chance_increased: HashMap::new(),
             hits_per_attack: 1,
             can_chain: false,
             chain_count: 0,
@@ -395,6 +403,7 @@ impl DamagePacketGenerator {
             status_conversions: SkillStatusConversions::default(),
             damage_conversions: DamageConversions::default(),
             type_effectiveness: DamageTypeEffectiveness::default(),
+            status_chance_increased: HashMap::new(),
             hits_per_attack: 1,
             can_chain: false,
             chain_count: 0,
@@ -402,6 +411,25 @@ impl DamagePacketGenerator {
             mana_cost: 0.0,
             cooldown: 0.0,
         }
+    }
+
+    /// Get the increased chance to apply a specific status effect
+    /// Returns 0.0 if no bonus is configured for this status
+    pub fn status_chance_for(&self, status: StatusEffect) -> f64 {
+        let key = match status {
+            StatusEffect::Poison => "poison",
+            StatusEffect::Bleed => "bleed",
+            StatusEffect::Burn => "burn",
+            StatusEffect::Freeze => "freeze",
+            StatusEffect::Chill => "chill",
+            StatusEffect::Static => "static",
+            StatusEffect::Fear => "fear",
+            StatusEffect::Slow => "slow",
+        };
+        self.status_chance_increased
+            .get(key)
+            .copied()
+            .unwrap_or(0.0)
     }
 
     /// Get the effective mana cost after reductions

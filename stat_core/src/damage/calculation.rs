@@ -175,15 +175,15 @@ pub fn calculate_damage(
                 attacker.dot_multiplier,
             );
 
-            packet
-                .status_effects_to_apply
-                .push(PendingStatusEffect::new_with_dot(
-                    status,
-                    status_damage,
-                    duration,
-                    magnitude,
-                    dot_dps,
-                ));
+            let mut pending = PendingStatusEffect::new_with_dot(
+                status,
+                status_damage,
+                duration,
+                magnitude,
+                dot_dps,
+            );
+            pending.apply_chance_increased = skill.status_chance_for(status);
+            packet.status_effects_to_apply.push(pending);
         }
     }
 
@@ -478,6 +478,67 @@ mod tests {
         assert!(packet.is_critical);
         // 100 * 1.5 (base crit multi) = 150
         assert!((packet.total_damage() - 150.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_apply_chance_increased_scales_chance() {
+        // Without apply_chance_increased
+        let base = PendingStatusEffect::new(StatusEffect::Burn, 500.0, 4.0, 1.0);
+        let chance_base = base.calculate_apply_chance(1000.0);
+        assert!((chance_base - 0.5).abs() < f64::EPSILON); // 500/1000 = 0.5
+
+        // With 20% increased apply chance
+        let mut boosted = PendingStatusEffect::new(StatusEffect::Burn, 500.0, 4.0, 1.0);
+        boosted.apply_chance_increased = 0.2;
+        let chance_boosted = boosted.calculate_apply_chance(1000.0);
+        // 0.5 * 1.2 = 0.6
+        assert!((chance_boosted - 0.6).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_apply_chance_increased_clamped_to_1() {
+        // High status damage + increased should clamp to 1.0
+        let mut effect = PendingStatusEffect::new(StatusEffect::Poison, 900.0, 4.0, 1.0);
+        effect.apply_chance_increased = 0.5;
+        let chance = effect.calculate_apply_chance(1000.0);
+        // 0.9 * 1.5 = 1.35, clamped to 1.0
+        assert!((chance - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_skill_status_chance_increased_wired_through() {
+        let attacker = StatBlock::new();
+        let mut status_chance = HashMap::new();
+        status_chance.insert("burn".to_string(), 0.25);
+
+        let skill = DamagePacketGenerator {
+            id: "fire_skill".to_string(),
+            name: "Fire Skill".to_string(),
+            base_damages: vec![BaseDamage::new(DamageType::Fire, 100.0, 100.0)],
+            weapon_effectiveness: 0.0,
+            status_conversions: SkillStatusConversions {
+                fire_to_burn: 0.5,
+                ..Default::default()
+            },
+            status_chance_increased: status_chance,
+            ..Default::default()
+        };
+
+        let mut rng = make_test_rng();
+        let packet = calculate_damage(&attacker, &skill, "player".to_string(), &mut rng);
+
+        // Find the Burn pending status effect
+        let burn = packet
+            .status_effects_to_apply
+            .iter()
+            .find(|s| s.effect_type == StatusEffect::Burn);
+        assert!(burn.is_some(), "should have a burn status effect");
+        let burn = burn.unwrap();
+        assert!(
+            (burn.apply_chance_increased - 0.25).abs() < f64::EPSILON,
+            "burn apply_chance_increased should be 0.25, got {}",
+            burn.apply_chance_increased
+        );
     }
 
     #[test]
